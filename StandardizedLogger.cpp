@@ -20,7 +20,7 @@ std::shared_ptr<CStandardizedLogger> CStandardizedLogger::GetInstance()
 		CSingleLock lock(&s_lockSection);
 		lock.Lock();
 		if(s_instance == nullptr)
-			s_instance = std::shared_ptr<CStandardizedLogger>(new CStandardizedLogger());
+			s_instance = std::make_shared<CStandardizedLogger>();
 	}
 
 	return s_instance;
