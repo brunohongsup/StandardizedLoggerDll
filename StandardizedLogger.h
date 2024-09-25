@@ -9,154 +9,247 @@
 
 class CStandardizedLoggerImpl;
 
+namespace StandardizedLogging
+{
+	enum class EPreTag
+	{
+		None = 0,
+		InterfaceIn = 1,
+		InterfaceOut,
+		ThreadStart,
+		ThreadEnd,
+		SyncIn,
+		SyncOut,
+		UserIO,
+		HeartBeatIn,
+		HeartBeatOut,
+	};
+
+	enum class EPostTag
+	{
+		None = 0,
+		MainLoopStart = 1,
+		MainLoopEnd,
+		FunctionStart,
+		FunctionEnd,
+	};
+
+	enum class EProcessLogThread
+	{
+		MainThread = 0,
+		SaveImgThread,
+		SaveDataThread,
+		ImgProcThread,
+		InspectThread,
+		CameraThread
+	};
+
+	enum class ESystemLogThread
+	{
+		SaveProcessThread = 0,
+		SystemThread
+	};
+
+	enum class EResultValue
+	{
+		OK,
+		NG
+	};
+
+	enum class ELogFileType
+	{
+		ProcessLog,
+		SystemLog,
+		AlarmLog,
+		ResultLog,
+		ThreadList
+	};
+
+	enum class EInterfaceTarget
+	{
+		PLC = 0,
+		SPC,
+		Camera,
+		Umac,
+		LightController,
+		Encoder,
+		AutoCorrector,
+		Argos, // Deep Learning Library
+		VisionPC,
+		Broker,
+		Mavin,
+		Classifier,
+		TriggerBoard,
+		Database,
+		CellTracker,
+	};
+
+	static CString GetPostTagString(const EPostTag tag)
+	{
+		_ASSERT(tag != EPostTag::None);
+		static const LPCTSTR lpszPostTags[] =
+		{
+			_T("No-Post-Tag-This Shouldn't be printed on the log file"),
+			_T("[MLS]"),
+			_T("[MLE]"),
+			_T("[FS]"),
+			_T("[FE]")
+		};
+
+		const int nTagIdx = static_cast<int>(tag);
+		return lpszPostTags[nTagIdx];
+	}
+
+	static CString GetPreTagString(const EPreTag tag)
+	{
+		_ASSERT(tag != EPreTag::None);
+		static const LPCTSTR lpszPreTags[] =
+		{
+			_T("No-Pre-Tag-This Shouldn't be printed on the log file"),
+			_T("[I-I]"),
+			_T("[I-O]"),
+			_T("[TS]"),
+			_T("[TE]"),
+			_T("[S-I]"),
+			_T("[S-O]"),
+			_T("[USER]"),
+			_T("[H-I]"),
+			_T("[H-O]"),
+		};
+
+		const int nTagIdx = static_cast<int>(tag);
+		return lpszPreTags[nTagIdx];
+	}
+
+
+	static CString GetInterfaceTargetString(const EInterfaceTarget eTarget)
+	{
+		static const LPCTSTR lpszInterfaceTarget[] =
+		{
+			_T("Plc"),
+			_T("Spc"),
+			_T("Cam"),
+			_T("Umac"),
+			_T("LightCon"),
+			_T("Enc"),
+			_T("AutoCorr"),
+			_T("Ags"),
+			_T("Vp"),
+			_T("Brkr"),
+			_T("Mavn"),
+			_T("Clasfr"),
+			_T("TrgBd"),
+			_T("Db"),
+			_T("Cetr"),
+		};
+
+		const int targetIdx = static_cast<int>(eTarget);
+		ASSERT(targetIdx >= static_cast<int>(EInterfaceTarget::PLC) && targetIdx <= static_cast<int>(EInterfaceTarget::CellTracker));
+
+
+		return lpszInterfaceTarget[targetIdx];
+	}
+
+
+
+	static CString GetLogTypeString(const ELogFileType logType)
+	{
+		static const LPCTSTR lpszLogType[] =
+		{
+			_T("PROCESS"),
+			_T("SYSTEM"),
+			_T("ALARM"),
+			_T("RESULT"),
+			_T("LIST")
+		};
+
+		const int nLogIdx = static_cast<int>(logType);
+		ASSERT(nLogIdx >= static_cast<int>(ELogFileType::ProcessLog) && nLogIdx <= static_cast<int>(ELogFileType::ThreadList));
+		return lpszLogType[nLogIdx];
+	}
+
+
+	static CString GetProcessLogThreadName(EProcessLogThread eThread)
+	{
+		static const LPCTSTR szThreadName[] =
+		{
+			_T("MAIN-THREAD"),
+			_T("SAVE-IMAGE"),
+			_T("SAVE-DATA"),
+			_T("IMAGE-PROCESS"),
+			_T("INSPECT"),
+			_T("CAM-THREAD"),
+		};
+
+		const size_t nThreadIdx = static_cast<size_t>(eThread);
+		const size_t nSize = sizeof(szThreadName);
+		_ASSERT(nThreadIdx <= nSize);
+
+		return szThreadName[nThreadIdx];
+	}
+
+	static CString GetSystemLogThreadName(ESystemLogThread eThread)
+	{
+		static const LPCTSTR szThreadName[] =
+		{
+			_T("SAVE-PROC-LOG"),
+			_T("SYSTEM"),
+		};
+
+		const size_t nThreadIdx = static_cast<size_t>(eThread);
+		const size_t nSize = sizeof(szThreadName);
+		_ASSERT(nThreadIdx <= nSize);
+
+		return szThreadName[nThreadIdx];
+	}
+}
+
 class CStandardizedLoggerPrivate
 {
 public:
-	virtual ~CStandardizedLoggerPrivate() = 0;
-	CStandardizedLoggerPrivate()
-	{
 
-	}
+
+protected:
 
 private:
 	friend class CStandardizedLogger;
 
+	virtual void PushMainLoopStart(const int nProductCount, const int nMainThreadIdx = 1) = 0;
 
-	virtual void PushProcLogMainThreadMainLoopStart(const int nProductCount, const int nMainThreadIdx = 1) = 0;
-
-	virtual void PushProcLogMainThreadMainLoopEnd(const int nProductCount, const CString& strProductId, const int nMainThreadIdx = 1) = 0;
+	virtual void PushMainLoopEnd(const int nProductCount, const CString& strProductId, const int nMainThreadIdx = 1) = 0;
 
 	virtual void SetVisionSystemMajorName(const CString& strMachineName) = 0;
 
 	virtual void SetVisionSystemMinorName(const CString& strMachineName) = 0;
 
-	virtual void PushProcLogCameraThreadInterfaceInGrab(const int nProductCount, const CString& strProductId, const int nCameraThreadIdx = 1) = 0;
-
-	virtual void PushProcLogCameraThreadSyncOutToMainThread(const int nProductCount, const CString& strProductId, const int CameraIdx, const int nMainThreadIdx) = 0;
-
-	virtual void PushProcLogMainThreadSyncInFromCamreaThread(const int& nProductCount, const int& nMainThreadIdx, const int& nCameraThreadIdx, const CString& strProductId) = 0;
-
-	virtual void PushProcLogMainThreadSyncOutToImgProcThread(const int nProductCount, const int nMainThreadIdx, const int nImgProcThreadIdx, const CString& strProductId) = 0;
-
-	virtual void PushProcLogMainThreadSyncInFromImgProcThread(const int nProductCount, const int& nMainThreadIdx, const int& nImgProcThreadIdx, const CString& strProductId) = 0;
-
-	virtual void PushProcLogMainThreadEndJudgementResult(const int nProductCount, const int& nMainThreadIdx, const CString& strProductId) = 0;
-
 	virtual bool init() = 0;
 
 	virtual void Clear() = 0;
 
-	virtual void PushProcLogMainThreadInterfaceInFromCellTrackerNoPostTag(const int nProductCount, const int nMainThreadIdx = 1) = 0;
+	virtual void PushProcessLog(const int nProductCount, const CString& strProductId, const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString& strLogContent, const StandardizedLogging::EPreTag ePreTag, const StandardizedLogging::EPostTag ePostTag) = 0;
 
-	virtual void PushProcLogMainThreadInterfaceInFromCellTrackerFunctionStartPostTag(const int nProductCount, const int nMainThreadIdx = 1) = 0;
+	virtual void PushSystemLog(const int nProductCount, const CString& strProductId, const StandardizedLogging::ESystemLogThread eLogThread, const CString& strLogContent, const StandardizedLogging::EPreTag = StandardizedLogging::EPreTag::None, const StandardizedLogging::EPostTag ePostTag = StandardizedLogging::EPostTag::None) = 0;
 
-	virtual void PushProcLogMainThreadInterfaceInFromCellTrackerFunctionEndPostTag(const int nProductCount, const int nMainThreadIdx = 1) = 0;
+	virtual void PushResultLog(const int nProductCount, const CString& strModuleId, const CString& strCellId, const StandardizedLogging::EResultValue eResultValue, const CString& strImgPath, const std::vector<CString>& vctLogs) = 0;
 
-
-	virtual void PushProcLogMainThreadSyncOutToSaveImgThread(const int nProductCount, const CString& strProductId, const int nMainThreadIdx, const int nSaveImgThreadIdx) = 0;
-
-	virtual void PushProcLogMainThreadSyncOutToSaveDataThread(const int nProductCount, const CString& strProductId, const int nMainThreadIdx, const int nSaveImgThreadIdx) = 0;
-
-	virtual void PushProcLogMainThreadSyncOutToSaveProcLogThread(const int nProductCount, const CString& strProductId, const int nMainThreadIdx) = 0;
-
-	virtual void PushProcLogSaveImgThreadSyncInFromMainThread(const int nProductCount, const CString& strProductId, const int nSaveImgThreadIdx, const int nMainThreadIdx) = 0;
-
-	virtual void PushProcLogSaveDateThreadSyncInFromMainThread(const int nProductCount, const CString& strProductId, const int nSaveImgThreadIdx, const int nMainThreadIdx) = 0;
-
-	virtual void PushProcLogSaveImgThreadSaveImgThreadStartPreTag(const int nProductCount, const CString& strProductId, const int nSaveImgThreadIdx, const int nCameraThreadIdx) = 0;
-
-	virtual void PushProcLogSaveImgThreadSaveImgThreadEndPreTag(const int nProductCount, const CString& strProductId, const int nSaveImgThreadIdx, const int nCameraThreadIdx) = 0;
-
-
-	virtual void PushProcLogSaveImgThreadSaveSpcImgThreadStartPreTag(const int nProductCount, const CString& strProductId, const int nSaveImgThreadIdx, const int nCameraThreadIdx) = 0;
-
-	virtual void PushProcLogSaveImgThreadSaveSpcImgThreadEndPreTag(const int nProductCount, const CString& strProductId, const int nSaveImgThreadIdx, const int nCameraThreadIdx) = 0;
-
-	virtual void PushProcLogSaveDataThreadSyncInFromMainThread(const int nProductCount, const CString& strProductId, const int nSaveDataThreadIdx, const int nMainThreadIdx) = 0;
-
-	virtual void PushProcLogSaveDataThreadSaveDataThreadStartPreTag(const int nProductCount, const CString& strProductId, const int nSaveDataThreadIdx = 1) = 0;
-
-	virtual void PushProcLogSaveDataThreadSaveDataThreadEndPreTag(const int nProductCount, const CString& strProductId, const int nSaveDataThreadIdx) = 0;
-
-	virtual void PushProcLogSaveDataThreadSaveSpcDataThreadStartPreTag(const int nProductCount, const CString& strProductId, const int nSaveDataThreadIdx) = 0;
-
-	virtual void PushProcLogSaveDataThreadSaveSpcDataThreadEndPreTag(const int nProductCount, const CString& strProductId, const int nSaveDataThreadIdx) = 0;
-
-	virtual void PushProcLogCellTrackingCallbackEnd(const int nProductCount, const CString& strProductId, const int nMainThreadIdx) = 0;
-
-	virtual void PushSystemLogSaveProcLogThreadSyncInFromMainThread(const int nProductCount, const CString& strProductId, const int nMainThreadIdx) = 0;
-
-	virtual void PushSystemLogSaveProcThreadSaveProcessLogThreadStartPreTag(const int nProductCount, const CString& strProductId) = 0;
-
-	virtual void PushSystemLogSaveProcThreadSaveProcessLogThreadEndPreTag(const int nProductCount, const CString& strProductId) = 0;
-
-	virtual void PushSystemLogSaveEtcThreadHeartBitOut(const int nProductCount, const CString& strProductId) = 0;
-
-	virtual void PushResultLog(const int nProductCount, const CString& strModuelId, const CString& strCellId, const CString& strImagePath, const std::vector<CString>& vctEtcLog) = 0;
-
-	virtual void PushAlarmLogCellTrackingInputFailOn(const int nProductCount, const CString& strProductId) = 0;
-
-	virtual void PushAlarmLogGrabFail(const int nProductCount, const CString& strProductId, const int nCameraIdx) = 0;
-
-	virtual void PushProcLogMainThreadInterfaceInFromPLCResetOn(const int nProductCount, const int nMainThreadId, const CString& strProductId) = 0;
-
-	virtual void PushProcLogMainThreadInterfaceInFromPLCResetOff(const int nProductCount, const int nMainThreadId, const CString& strProductId) = 0;
-		//PLC -> VISION RESET OFF
-	virtual void PushProcLogMainThreadInterfaceOutToPLCResetOn(const int nProductCount, const int nMainThreadIdx, const CString& strProductId) = 0;
-
-
-	virtual void PushProcLogMainThreadInterfaceOutToPLCResetOff(const int nProductCount, const int nMainThreadIdx, const CString& strProductId) = 0;
-
-	virtual void PushProcLogMainThreadInterfaceOutToEncoderResetFunctionStartPostTag(const int nProductCount, const int nMainThreadIdx, const CString& strProductId) = 0;
-
-	virtual void PushProcLogMainThreadInterfaceOutToEncoderResetFunctionEndPostTag(const int nProductCount, const int nMainThreadIdx, const CString& strProductId) = 0;
-
-	virtual void PushProcLogMainThreadSyncInFrom3DCamreaThread(const int nProductCount, const int& nMainThreadIdx, const int& n3DCamreaIdx, const CString& strProductId) = 0;
-
-	virtual void PushProcLog3DCameraThreadSyncOutToMainThread(const int nProductCount, const int n3DCameraThreadIdx, const int nMainThreadIdx, const CString& strProductId) = 0;
-
-	virtual void PushProcLogMainThreadInterfaceInFromPLCStepNumber(const int nProductCount, const int nMainThreadIdx, const int nStepNumber, const CString& strProductId) = 0;
-
-	virtual void PushProcLogMainThreadInterfaceOutToPLCVisionReadyOn(const int nProductCount, const int nMainThreadIdx, const CString& strProductId) = 0;
-
-	virtual void PushProcLogMainThreadInterfaceOutToPLCVisionReadyOff(const int nProductCount, const int nMainThreadIdx, const CString& strProductId) = 0;
-
-	virtual void PushProcLogMainThreadCheckStepNumber(const int nProductCount, const int nMainThreadIdx, const CString& strProductId, const int nStepNumber) = 0;
-
-	virtual void PushProcLogMainThreadInterfaceInFromPLCTriggerOn(const int nProductCount, const int nMainThreadIdx, const CString& strProductId) = 0;
-
-	virtual void PushProcLogMainThreadInterfaceInFromPLCTriggerOff(const int nProductCount, const int nMainThreadIdx, const CString& strProductId) = 0;
-
-	virtual void PushProcLogMainThreadInterfaceOutToTriggerEnable(const int nProductCount, const int nMainThreadIdx, const CString& strProductId) = 0;
-
-	virtual void PushProcLogMainThreadInterfaceOutToPLCFinishOn(const int nProductCount, const int nMainThreadIdx, const CString& strProductId) = 0;
-
-	virtual void PushProcLogMainThreadInterfaceOutToPLCFinishOff(const int nProductCount, const int nMainThreadIdx, const CString& strProductId) = 0;
-
-
-	virtual void PushProcLogMainThreadInterfaceInFromPLCResultAckOn(const int nProductCount, const CString& strProductId, const int nMainThreadIdx) = 0;
-
-	virtual void PushProcLogMainThreadInterfaceInFromPLCResultAckOff(const int nProductCount, const CString& strProductId, const int nMainThreadIdx) = 0;
-
-	virtual void PushProcLogMainThreadInterfaceOutToPlcResultOn(const int nProductCount, const int nMainThreadIdx, const CString& strProductId) = 0;
-
-	virtual void PushProcLogMainThreadInterfaceOutToPlcResultOff(const int nProductCount, const int nMainThreadIdx, const CString& strProductId) = 0;
-
-	virtual void PushProcLogMainThreadInterfaceOutToPLCResetAckOn(const int nProductCount, const int nMainThreadId, const CString& strProductId) = 0;
-
-	virtual void PushAlaramLogOperatorStopButton(const int nProductCount, const CString& strProductId, const int nMainThreadIdx) = 0;
-
+	virtual void PushAlarmLog(const int nProductCount, const CString& strProductId, const CString& strLogContent) = 0;
 
 protected:
 
 };
 
-class __declspec(dllexport) CStandardizedLogger : CObject
+class __declspec(dllexport) CStandardizedLogger
 {
 private:
 
 
 public:
+
+	typedef StandardizedLogging::EPostTag EPostTag;
+	typedef StandardizedLogging::EPreTag EPreTag;
+	typedef StandardizedLogging::EProcessLogThread EProcessLogThread;
+	typedef StandardizedLogging::ESystemLogThread ESystemLogThread;
+	typedef StandardizedLogging::EResultValue EResultValue;
 
 	void Clear()
 	{
@@ -173,302 +266,50 @@ public:
 		m_pImpl->SetVisionSystemMinorName(strMinorName);
 	}
 
-	void PushProcLogMainThreadMainLoopStart(const int nProductCount, const int nMainThreadIdx = 1)
+	void PushMainLoopStart(const int nProductCount, const int nMainThreadIdx = 1)
 	{
-		m_pImpl->PushProcLogMainThreadMainLoopStart(nProductCount, nMainThreadIdx);
+		m_pImpl->PushMainLoopStart(nProductCount, nMainThreadIdx);
 	}
 
-	void PushProcLogMainThreadMainLoopEnd(const int nProductCount, const int nMainThreadIdx = 1, const CString& strProductId = _T("Null"))
+	void PushMainLoopEnd(const int nProductCount, const int nMainThreadIdx = 1, const CString& strProductId = _T("Null"))
 	{
-		m_pImpl->PushProcLogMainThreadMainLoopEnd(nProductCount, strProductId, nMainThreadIdx);
+		m_pImpl->PushMainLoopEnd(nProductCount, strProductId, nMainThreadIdx);
 	}
 
-	void PushProcLogCameraThreadInterfaceInGrab(const int nProductCount, const int& nCameraThreadIdx = 1, const CString& strProductId = _T("Null")) const
+	void PushProcessLog(const int nProductCount, const CString& strProductId, const EProcessLogThread eLogThread, const int nThreadIdx, const CString& strLogContent, const EPreTag ePreTag = EPreTag::None, const EPostTag ePostTag = EPostTag::None)
 	{
-		m_pImpl->PushProcLogCameraThreadInterfaceInGrab(nProductCount, strProductId, nCameraThreadIdx);
+		m_pImpl->PushProcessLog(nProductCount, strProductId, eLogThread, nThreadIdx, strLogContent,ePreTag, ePostTag);
 	}
 
-	void PushProcLogCameraThreadSyncOutToMainThread(const int nProductCount, const int nCameraIdx = 1, const int nMainThreadIdx = 1, const CString& strProductId = _T("Null")) const
+	void PushSystemLog(const int nProductCount, const CString& strProductId, const ESystemLogThread eLogThread, const CString& strLogContent, const EPreTag ePreTag = EPreTag::None, const EPostTag ePostTag = EPostTag::None)
 	{
-		m_pImpl->PushProcLogCameraThreadSyncOutToMainThread(nProductCount, strProductId, nCameraIdx, nMainThreadIdx);
+		m_pImpl->PushSystemLog(nProductCount, strProductId, eLogThread, strLogContent, ePreTag, ePostTag);
 	}
 
-	void PushProcLogMainThreadInterfaceInFromPLCResetOn(const int nProductCount, const int nMainThreadId = 1, const CString& strProductId = _T("Null"))
+	void PushAlarmLog(const int nProductCount, const CString& strProductId, const CString& strLogContent)
 	{
-		//PLC -> VISION RESET ON
-		m_pImpl->PushProcLogMainThreadInterfaceInFromPLCResetOn(nProductCount, nMainThreadId, strProductId);
+		m_pImpl->PushAlarmLog(nProductCount, strProductId, strLogContent);
 	}
 
-	void PushProcLogMainThreadInterfaceOutToPLCResetAckOn(const int nProductCount, const int nMainThreadId = 1, const CString& strProductId = _T("Null"))
+	void PushResultLog(const int nProductCount, const CString& strModuleId, const CString& strCellId, const EResultValue eResultValue, const CString& strImgPath, const std::vector<CString>& vctLogs = {})
 	{
-		//PLC -> VISION RESET ON
-	}
-
-
-	void PushProcLogMainThreadInterfaceInFromPLCResetOff(const int nProductCount, const int nMainThreadId = 1, const CString& strProductId = _T("Null"))
-	{
-		//PLC -> VISION RESET OFF
-		m_pImpl->PushProcLogMainThreadInterfaceInFromPLCResetOff(nProductCount, nMainThreadId, strProductId);
-	}
-
-	void PushProcLogMainThreadInterfaceOutToPLCResetOn(const int nProductCount, const int nMainThreadIdx = 1, const CString& strProductId = _T("Null"))
-	{
-		//VISION -> PLC RESET ON
-		m_pImpl->PushProcLogMainThreadInterfaceOutToPLCResetOn(nProductCount, nMainThreadIdx, strProductId);
-	}
-
-	void PushProcLogMainThreadInterfaceOutToPLCResetOff(const int nProductCount, const int nMainThreadIdx = 1, const CString& strProductId = _T("Null"))
-	{
-		//VISION -> PLC RESET OFF
-		m_pImpl->PushProcLogMainThreadInterfaceOutToPLCResetOff(nProductCount, nMainThreadIdx, strProductId);
-	}
-
-	void PushProcLogMainThreadInterfaceOutToPLCVisionReadyOn(const int nProductCount, const int nMainThreadIdx = 1, const CString& strProductId = _T("Null"))
-	{
-		m_pImpl->PushProcLogMainThreadInterfaceOutToPLCVisionReadyOn(nProductCount, nMainThreadIdx, strProductId);
-	}
-
-	void PushProcLogMainThreadInterfaceOutToPLCVisionReadyOff(const int nProductCount, const int nMainThreadIdx = 1, const CString& strProductId = _T("Null"))
-	{
-		m_pImpl->PushProcLogMainThreadInterfaceOutToPLCVisionReadyOff(nProductCount, nMainThreadIdx, strProductId);
-	}
-
-
-	void PushProcLogMainThreadInterfaceInFromPLCStepNumber(const int nProductCount, const int nMainThreadIdx = 1, const int nStepNumber = 1, const CString& strProductId = _T("Null"))
-	{
-		//PLC -> VISION Step Number
-		m_pImpl->PushProcLogMainThreadInterfaceInFromPLCStepNumber(nProductCount, nMainThreadIdx, nStepNumber, strProductId);
-	}
-
-	void PushProcLogMainThreadInterfaceOutToEncoderResetFunctionStartPostTag(const int nProductCount, const int nMainThreadIdx = 1, const CString& strProductId = _T("Null"))
-	{
-		//m_pImpl->PushProcLogMainThreadInterfaceOutToEncoderResetFunctionStartPostTag(nProductCount, nMainThreadIdx, strProductId);
-	}
-
-	void PushProcLogMainThreadInterfaceOutToEncoderResetFunctionEndPostTag(const int nProductCount, const int nMainThreadIdx = 1, const CString& strProductId = _T("Null"))
-	{
-		//m_pImpl->PushProcLogMainThreadInterfaceOutToEncoderResetFunctionEndPostTag(nProductCount, nMainThreadIdx);
-	}
-
-	void PushProcLogMainThreadInterfaceInFromPLCTriggerOn(const int nProductCount, const int nMainThreadIdx = 1, const CString& strProductId = _T("Null")) const
-	{
-		m_pImpl->PushProcLogMainThreadInterfaceInFromPLCTriggerOn(nProductCount, nMainThreadIdx, strProductId);
-	}
-
-	void PushProcLogMainThreadInterfaceOutToTriggerEnable(const int nProductCount, const int nMainThreadIdx = 1, const CString& strProductId = _T("Null")) const
-	{
-		m_pImpl->PushProcLogMainThreadInterfaceOutToTriggerEnable(nProductCount, nMainThreadIdx, strProductId);
-	}
-
-	void PushProcLogMainThreadInterfaceInFromPLCTriggerOff(const int nProductCount, const int nMainThreadIdx = 1, const CString& strProductId = _T("Null")) const
-	{
-		m_pImpl->PushProcLogMainThreadInterfaceInFromPLCTriggerOff(nProductCount, nMainThreadIdx, strProductId);
-	}
-
-	void PushProcLogMainThreadInterfaceInFromPLCResultAckOn(const int nProductCount, const CString& strProductId, const int nMainThreadIdx = 1) const
-	{
-		m_pImpl->PushProcLogMainThreadInterfaceInFromPLCResultAckOn(nProductCount, strProductId, nMainThreadIdx);
-	}
-
-	void PushProcLogMainThreadInterfaceInFromPLCResultAckOff(const int nProductCount, const CString& strProductId, const int nMainThreadIdx = 1)
-	{
-		m_pImpl->PushProcLogMainThreadInterfaceInFromPLCResultAckOff(nProductCount, strProductId, nMainThreadIdx);
-	}
-
-	void PushProcLogMainThreadInterfaceOutToPlcResultOn(const int nProductCount, const CString& strProductId, const int nMainThreadIdx = 1)
-	{
-		m_pImpl->PushProcLogMainThreadInterfaceOutToPlcResultOn(nProductCount, nMainThreadIdx, strProductId);
-	}
-
-	void PushProcLogMainThreadInterfaceOutToPlcResultOff(const int nProductCount, const CString& strProductId, const int nMainThreadIdx = 1)
-	{
-		m_pImpl->PushProcLogMainThreadInterfaceOutToPlcResultOff(nProductCount, nMainThreadIdx, strProductId);
-	}
-
-	void PushProcLogMainThreadSyncInFromCamreaThread(const int nProductCount, const int& nMainThreadIdx = 1, const int& nCameraThreadIdx = 1, const CString& strProductId = _T("Null"))
-	{
-		m_pImpl->PushProcLogMainThreadSyncInFromCamreaThread(nProductCount, nMainThreadIdx, nCameraThreadIdx, strProductId);
-	}
-
-	void PushProcLogMainThreadSyncInFrom3DCamreaThread(const int nProductCount, const int& nMainThreadIdx = 1, const int& n3DCamreaIdx = 1, const CString& strProductId = _T("Null"))
-	{
-		m_pImpl->PushProcLogMainThreadSyncInFrom3DCamreaThread(nProductCount, nMainThreadIdx, n3DCamreaIdx, strProductId);
-	}
-
-	void PushProcLog3DCameraThreadSyncOutToMainThread(const int nProductCount, const int& n3DCameraThreadIdx = 1, const int& nMainThreadIdx = 1, const CString& strProductId = _T("Null"))
-	{
-		m_pImpl->PushProcLog3DCameraThreadSyncOutToMainThread(nProductCount, n3DCameraThreadIdx, nMainThreadIdx, strProductId);
-	}
-
-	void PushProcLogMainThreadSyncOutToImgProcThread(const int nProductCount, const int& nMainThreadIdx = 1, const int& nImgProcThreadIdx = 1, const CString& strProductId = _T("Null")) const
-	{
-		m_pImpl->PushProcLogMainThreadSyncOutToImgProcThread(nProductCount, nMainThreadIdx, nImgProcThreadIdx, strProductId);
-	}
-
-	void PushProcLogMainThreadSyncInFromImgProcThread(const int nProductCount, const int& nMainThreadIdx = 1, const int& nImgProcThreadIdx = 1, const CString& strProductId = _T("Null")) const
-	{
-		m_pImpl->PushProcLogMainThreadSyncInFromImgProcThread(nProductCount, nMainThreadIdx, nImgProcThreadIdx, strProductId);
-	}
-
-	void PushProcLogMainThreadEndJudgementResult(const int nProductCount, const int& nMainThreadIdx = 1, const CString& strProductId = _T("Null")) const
-	{
-		m_pImpl->PushProcLogMainThreadEndJudgementResult(nProductCount, nMainThreadIdx, strProductId);
-	}
-
-	void PushProcLogMainThreadInterfaceOutToPLCFinishOn(const int nProductCount, const int nMainThreadIdx, const CString& strProductId) const
-	{
-		m_pImpl->PushProcLogMainThreadInterfaceOutToPLCFinishOn(nProductCount, nMainThreadIdx, strProductId);
-	}
-
-	void PushProcLogMainThreadInterfaceOutToPLCFinishOff(const int nProductCount, const int nMainThreadIdx = 1, const CString& strProductId = _T("Null")) const
-	{
-		m_pImpl->PushProcLogMainThreadInterfaceOutToPLCFinishOff(nProductCount, nMainThreadIdx, strProductId);
-	}
-
-	void PushProcLogMainThreadInterfaceInFromCellTrackerFunctionStartPostTag(const int nProductCount, const int nMainThreadIdx = 1)
-	{
-		m_pImpl->PushProcLogMainThreadInterfaceInFromCellTrackerFunctionStartPostTag(nProductCount, nMainThreadIdx);
-	}
-
-	void PushProcLogMainThreadInterfaceInFromCellTrackerFunctionEndPostTag(const int nProductCount, const int nMainThreadIdx = 1)
-	{
-		m_pImpl->PushProcLogMainThreadInterfaceInFromCellTrackerFunctionEndPostTag(nProductCount, nMainThreadIdx);
-	}
-
-	void PushProcLogMainThreadInterfaceInFromCellTrackerNoPostTag(const int nProductCount, const int nMainThreadIdx = 1)
-	{
-		m_pImpl->PushProcLogMainThreadInterfaceInFromCellTrackerNoPostTag(nProductCount, nMainThreadIdx);
-	}
-
-	void PushProcLogMainThreadSyncOutToSaveImgThread(const int nProductCount, const CString& strProductId, const int nMainThreadIdx = 1, const int nSaveImgThreadIdx = 1) const
-	{
-		m_pImpl->PushProcLogMainThreadSyncOutToSaveImgThread(nProductCount, strProductId, nMainThreadIdx, nSaveImgThreadIdx);
-	}
-
-	void PushProcLogMainThreadSyncOutToSaveDataThread(const int nProductCount, const CString& strProductId, const int nMainThreadIdx = 1, const int nSaveImgThreadIdx = 1) const
-	{
-		m_pImpl->PushProcLogMainThreadSyncOutToSaveDataThread(nProductCount, strProductId, nMainThreadIdx, nSaveImgThreadIdx);
-	}
-
-	void PushProcLogMainThreadSyncOutToSaveProcLogThread(const int nProductCount, const CString& strProductId, const int nMainThreadIdx = 1) const
-	{
-		m_pImpl->PushProcLogMainThreadSyncOutToSaveProcLogThread(nProductCount, strProductId, nMainThreadIdx);
-	}
-
-	void PushProcLogSaveImgThreadSyncInFromMainThread(const int nProductCount, const CString& strProductId, const int nSaveImgThreadIdx, const int nMainThreadIdx) const
-	{
-		m_pImpl->PushProcLogSaveImgThreadSyncInFromMainThread(nProductCount, strProductId, nSaveImgThreadIdx, nMainThreadIdx);
-	}
-
-	void PushProcLogSaveDateThreadSyncInFromMainThread(const int nProductCount, const CString& strProductId, const int nSaveImgThreadIdx, const int nMainThreadIdx) const
-	{
-		m_pImpl->PushProcLogSaveDataThreadSyncInFromMainThread(nProductCount, strProductId, nSaveImgThreadIdx, nMainThreadIdx);
-	}
-
-	void PushProcLogSaveImgThreadSaveImgThreadStartPreTag(const int nProductCount, const CString& strProductId, const int nSaveImgThreadIdx, const int nCameraThreadIdx) const
-	{
-		m_pImpl->PushProcLogSaveImgThreadSaveImgThreadStartPreTag(nProductCount, strProductId, nSaveImgThreadIdx, nCameraThreadIdx);
-	}
-
-	void PushProcLogSaveImgThreadSaveImgThreadEndPreTag(const int nProductCount, const CString& strProductId, const int nSaveImgThreadIdx, const int nCameraThreadIdx) const
-	{
-		m_pImpl->PushProcLogSaveImgThreadSaveImgThreadEndPreTag(nProductCount, strProductId, nSaveImgThreadIdx, nCameraThreadIdx);
-	}
-
-	void PushProcLogSaveImgThreadSaveSpcImgThreadStartPreTag(const int nProductCount, const CString& strProductId, const int nSaveImgThreadIdx, const int nCameraThreadIdx) const
-	{
-		m_pImpl->PushProcLogSaveImgThreadSaveSpcImgThreadStartPreTag(nProductCount, strProductId, nSaveImgThreadIdx, nCameraThreadIdx);
-	}
-
-	void PushProcLogSaveImgThreadSaveSpcImgThreadEndPreTag(const int nProductCount, const CString& strProductId, const int nSaveImgThreadIdx = 1, const int nCameraThreadIdx = 1) const
-	{
-		m_pImpl->PushProcLogSaveImgThreadSaveSpcImgThreadEndPreTag(nProductCount, strProductId, nSaveImgThreadIdx, nCameraThreadIdx);
-	}
-
-	void PushProcLogSaveDataThreadSyncInFromMainThread(const int nProductCount, const CString& strProductId, const int nSaveDataThreadIdx = 1, const int nMainThreadIdx = 1) const
-	{
-		m_pImpl->PushProcLogSaveDataThreadSyncInFromMainThread(nProductCount, strProductId, nSaveDataThreadIdx, nMainThreadIdx);
-	}
-
-	void PushProcLogSaveDataThreadSaveDataThreadStartPreTag(const int nProductCount, const CString& strProductId, const int nSaveDataThreadIdx = 1) const
-	{
-		m_pImpl->PushProcLogSaveDataThreadSaveDataThreadStartPreTag(nProductCount, strProductId, nSaveDataThreadIdx);
-	}
-
-	void PushProcLogSaveDataThreadSaveDataThreadEndPreTag(const int nProductCount, const CString& strProductId, const int nSaveDataThreadIdx = 1) const
-	{
-		m_pImpl->PushProcLogSaveDataThreadSaveDataThreadEndPreTag(nProductCount, strProductId, nSaveDataThreadIdx);
-	}
-
-	void PushProcLogMainThreadCheckStepNumber(const int nProductCount, const int nMainThreadIdx, const int nStepNumber, const CString& strProductId = _T("Null")) const
-	{
-		m_pImpl->PushProcLogMainThreadCheckStepNumber(nProductCount, nMainThreadIdx, strProductId, nStepNumber);
-	}
-
-	void PushProcLogSaveDataThreadSaveSpcDataThreadStartPreTag(const int nProductCount, const CString& strProductId, const int nSaveDataThreadIdx = 1) const
-	{
-		m_pImpl->PushProcLogSaveDataThreadSaveSpcDataThreadStartPreTag(nProductCount, strProductId, nSaveDataThreadIdx);
-	}
-
-	void PushProcLogSaveDataThreadSaveSpcDataThreadEndPreTag(const int nProductCount, const CString& strProductId, const int nSaveDataThreadIdx = 1) const
-	{
-		m_pImpl->PushProcLogSaveDataThreadSaveSpcDataThreadEndPreTag(nProductCount, strProductId, nSaveDataThreadIdx);
-	}
-
-	void PushProcLogCellTrackingCallbackEnd(const int nProductCount, const CString& strProductId, const int nMainThreadIdx = 1) const
-	{
-		m_pImpl->PushProcLogCellTrackingCallbackEnd(nProductCount, strProductId, nMainThreadIdx);
-	}
-
-	void PushSystemLogSaveProcLogThreadSyncInFromMainThread(const int nProductCount, const CString& strProductId, const int nMainThreadIdx) const
-	{
-		m_pImpl->PushSystemLogSaveProcLogThreadSyncInFromMainThread(nProductCount, strProductId, nMainThreadIdx);
-	}
-
-	void PushSystemLogSaveProcThreadSaveProcessLogThreadStartPreTag(const int nProductCount, const CString& strProductId) const
-	{
-		m_pImpl->PushSystemLogSaveProcThreadSaveProcessLogThreadStartPreTag(nProductCount, strProductId);
-	}
-
-	void PushSystemLogSaveProcThreadSaveProcessLogThreadEndPreTag(const int nProductCount, const CString& strProductId) const
-	{
-		m_pImpl->PushSystemLogSaveProcThreadSaveProcessLogThreadEndPreTag(nProductCount, strProductId);
-	}
-
-	void PushSystemLogSaveEtcThreadHeartBitOut(const int nProductCount, const CString& strProductId) const
-	{
-		m_pImpl->PushSystemLogSaveEtcThreadHeartBitOut(nProductCount, strProductId);
-	}
-
-	void PushResultLog(const int nProductCount, const CString& strModuleId, const CString& strCellId, const CString& strImagePath, const std::vector<CString>& vctEtcLogs) const
-	{
-		m_pImpl->PushResultLog(nProductCount, strModuleId, strCellId, strImagePath, vctEtcLogs);
-	}
-
-	void PushAlarmLogCellTrackingInputFailOn(const int nProductCount, const CString& strProductId) const
-	{
-		m_pImpl->PushAlarmLogCellTrackingInputFailOn(nProductCount, strProductId);
-	}
-
-	void PushAlarmLogGrabFail(const int nProductCount, const CString& strProductId, const int nCameraIdx) const
-	{
-		m_pImpl->PushAlarmLogGrabFail(nProductCount, strProductId, nCameraIdx);
-	}
-
-	void PushAlaramLogOperatorStopButton(const int nProductCount, const CString& strProductId, const int nMainThreadIdx = 1) const
-	{
-		m_pImpl->PushAlaramLogOperatorStopButton(nProductCount, strProductId, nMainThreadIdx);
+		m_pImpl->PushResultLog(nProductCount, strModuleId, strCellId, eResultValue, strImgPath, vctLogs);
 	}
 
 	static std::shared_ptr<CStandardizedLogger> GetInstance();
-	CStandardizedLogger();
 
 private:
+
+	CStandardizedLogger();
+
 	static std::shared_ptr<CStandardizedLogger> s_instance;
+
 	static CCriticalSection s_lockSection;
 
 	std::unique_ptr<CStandardizedLoggerPrivate> m_pImpl;
 
 	CStandardizedLogger(const CStandardizedLogger&) = delete;
+
+	friend std::shared_ptr<CStandardizedLogger> std::make_shared<CStandardizedLogger>();
 
 };
