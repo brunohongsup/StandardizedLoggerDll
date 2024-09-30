@@ -28,7 +28,7 @@ namespace StandardizedLogging
 	enum class EPostTag
 	{
 		None = 0,
-		MainLoopStart = 1,
+		MainLoopStart,
 		MainLoopEnd,
 		FunctionStart,
 		FunctionEnd,
@@ -39,9 +39,11 @@ namespace StandardizedLogging
 		MainThread = 0,
 		SaveImgThread,
 		SaveDataThread,
+		SaveEtcThread,
 		ImgProcThread,
 		InspectThread,
-		CameraThread
+		CameraThread,
+		_3DCameraThread
 	};
 
 	enum class ESystemLogThread
@@ -166,9 +168,11 @@ namespace StandardizedLogging
 			_T("MAIN-THREAD"),
 			_T("SAVE-IMAGE"),
 			_T("SAVE-DATA"),
+			_T("SAVE-ETC"),
 			_T("IMAGE-PROCESS"),
 			_T("INSPECT"),
 			_T("CAM-THREAD"),
+			_T("3DCAM-THREAD")
 		};
 
 		const int nThreadIdx = static_cast<int>(eThread);
@@ -185,122 +189,136 @@ namespace StandardizedLogging
 			_T("SYSTEM"),
 		};
 
-		const int nThreadIdx = static_cast<size_t>(eThread);
+		const int nThreadIdx = static_cast<int>(eThread);
 		const int nSize = sizeof(szThreadName);
 
 		return szThreadName[nThreadIdx];
 	}
-
-	class CStandardizedLoggerPrivate
-	{
-	public:
-
-	protected:
-
-	private:
-		friend class CStandardizedLogger;
-
-		virtual void PushMainLoopStart(const int nProductCount, const int nMainThreadIdx = 1) = 0;
-
-		virtual void PushMainLoopEnd(const int nProductCount, const CString& strProductId, const int nMainThreadIdx = 1) = 0;
-
-		virtual void SetVisionSystemMajorName(const CString& strMachineName) = 0;
-
-		virtual void SetVisionSystemMinorName(const CString& strMachineName) = 0;
-
-		virtual bool init() = 0;
-
-		virtual void Clear() = 0;
-
-		virtual void PushProcessLog(const int nProductCount, const CString& strProductId, const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString& strLogContent, const StandardizedLogging::EPreTag ePreTag, const StandardizedLogging::EPostTag ePostTag) = 0;
-
-		virtual void PushSystemLog(const int nProductCount, const CString& strProductId, const StandardizedLogging::ESystemLogThread eLogThread, const CString& strLogContent, const StandardizedLogging::EPreTag ePreTag, const StandardizedLogging::EPostTag ePostTag) = 0;
-
-		virtual void PushResultLog(const int nProductCount, const CString& strModuleId, const CString& strCellId, const StandardizedLogging::EResultValue eResultValue, const CString& strImgPath, const std::vector<CString>& vctLogs) = 0;
-
-		virtual void PushAlarmLog(const int nProductCount, const CString& strProductId, const CString& strLogContent) = 0;
-
-	protected:
-
-	};
-
-	class __declspec(dllexport) CStandardizedLogger
-	{
-	private:
-
-	public:
-
-		typedef StandardizedLogging::EPostTag EPostTag;
-
-		typedef StandardizedLogging::EPreTag EPreTag;
-
-		typedef StandardizedLogging::EProcessLogThread EProcessLogThread;
-
-		typedef StandardizedLogging::ESystemLogThread ESystemLogThread;
-
-		typedef StandardizedLogging::EResultValue EResultValue;
-
-		void Clear()
-		{
-			m_pImpl->Clear();
-		}
-
-		void SetVisionSystemMajorName(const CString& strMajorName)
-		{
-			m_pImpl->SetVisionSystemMajorName(strMajorName);
-		}
-
-		void SetVisionSystemMinorName(const CString& strMinorName)
-		{
-			m_pImpl->SetVisionSystemMinorName(strMinorName);
-		}
-
-		void WriteMainLoopStart(const int nProductCount, const int nMainThreadIdx = 1)
-		{
-			m_pImpl->PushMainLoopStart(nProductCount, nMainThreadIdx);
-		}
-
-		void WriteMainLoopEnd(const int nProductCount, const CString& strProductId, const int nMainThreadIdx = 1)
-		{
-			m_pImpl->PushMainLoopEnd(nProductCount, strProductId, nMainThreadIdx);
-		}
-
-		void WriteProcessLog(const int nProductCount, const CString& strProductId, const EProcessLogThread eLogThread, const int nThreadIdx, const CString& strLogContent, const EPreTag ePreTag = EPreTag::None, const EPostTag ePostTag = EPostTag::None)
-		{
-			m_pImpl->PushProcessLog(nProductCount, strProductId, eLogThread, nThreadIdx, strLogContent, ePreTag, ePostTag);
-		}
-
-		void WriteSystemLog(const int nProductCount, const CString& strProductId, const ESystemLogThread eLogThread, const CString& strLogContent, const EPreTag ePreTag = EPreTag::None, const EPostTag ePostTag = EPostTag::None)
-		{
-			m_pImpl->PushSystemLog(nProductCount, strProductId, eLogThread, strLogContent, ePreTag, ePostTag);
-		}
-
-		void WriteAlarmLog(const int nProductCount, const CString& strProductId, const CString& strLogContent)
-		{
-			m_pImpl->PushAlarmLog(nProductCount, strProductId, strLogContent);
-		}
-
-		void WriteResultLog(const int nProductCount, const CString& strModuleId, const CString& strCellId, const EResultValue eResultValue, const CString& strImgPath, const std::vector<CString>& vctLogs = std::vector<CString> {})
-		{
-			m_pImpl->PushResultLog(nProductCount, strModuleId, strCellId, eResultValue, strImgPath, vctLogs);
-		}
-
-		static std::shared_ptr<CStandardizedLogger> GetInstance();
-
-	private:
-
-		CStandardizedLogger();
-
-		CStandardizedLogger(const CStandardizedLogger&) = delete;
-
-		CStandardizedLogger& operator=(const CStandardizedLogger&) = delete;
-
-		static std::shared_ptr<CStandardizedLogger> s_instance;
-
-		static CCriticalSection s_lockSection;
-
-		std::unique_ptr<CStandardizedLoggerPrivate> m_pImpl;
-	};
-
 }
+
+class CStandardizedLoggerPrivate
+{
+public:
+
+protected:
+
+private:
+	friend class CStandardizedLogger;
+
+	virtual void WriteMainLoopStart(const int nProductCount, const int nMainThreadIdx = 1) = 0;
+
+	virtual void WriteMainLoopEnd(const int nProductCount, const CString& strProductId, const int nMainThreadIdx = 1) = 0;
+
+	virtual void SetVisionSystemMajorName(const CString& strMajorName) = 0;
+
+	virtual void SetVisionSystemMinorName(const CString& strMinorName) = 0;
+
+	virtual CString GetVisionSystemMajorName() const = 0;
+
+	virtual CString GetVisionSystemMinorName() const = 0;
+
+	virtual bool init() = 0;
+
+	virtual void Clear() = 0;
+
+	virtual void WriteProcessLog(const int nProductCount, const CString& strProductId, const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString& strLogContent, const StandardizedLogging::EPreTag ePreTag, const StandardizedLogging::EPostTag ePostTag) = 0;
+
+	virtual void WriteSystemLog(const int nProductCount, const CString& strProductId, const StandardizedLogging::ESystemLogThread eLogThread, const CString& strLogContent, const StandardizedLogging::EPreTag ePreTag, const StandardizedLogging::EPostTag ePostTag) = 0;
+
+	virtual void WriteResultLog(const int nProductCount, const CString& strModuleId, const CString& strCellId, const StandardizedLogging::EResultValue eResultValue, const CString& strImgPath, const std::vector<CString>& vctLogs) = 0;
+
+	virtual void WriteAlarmLog(const int nProductCount, const CString& strProductId, const CString& strLogContent) = 0;
+
+protected:
+
+};
+
+class __declspec(dllexport) CStandardizedLogger
+{
+private:
+
+public:
+
+	typedef StandardizedLogging::EPostTag EPostTag;
+
+	typedef StandardizedLogging::EPreTag EPreTag;
+
+	typedef StandardizedLogging::EProcessLogThread EProcessLogThread;
+
+	typedef StandardizedLogging::ESystemLogThread ESystemLogThread;
+
+	typedef StandardizedLogging::EResultValue EResultValue;
+
+	void Clear()
+	{
+		m_pImpl->Clear();
+	}
+
+	void SetVisionSystemMajorName(const CString& strMajorName)
+	{
+		m_pImpl->SetVisionSystemMajorName(strMajorName);
+	}
+
+	void SetVisionSystemMinorName(const CString& strMinorName)
+	{
+		m_pImpl->SetVisionSystemMinorName(strMinorName);
+	}
+
+	CString GetVisionSystemMajorName() const
+	{
+		return m_pImpl->GetVisionSystemMajorName();
+	}
+
+	CString GetVisionSystemMinorName() const
+	{
+		return m_pImpl->GetVisionSystemMinorName();
+	}
+
+	void WriteMainLoopStart(const int nProductCount, const int nMainThreadIdx = 1)
+	{
+		m_pImpl->WriteMainLoopStart(nProductCount, nMainThreadIdx);
+	}
+
+	void WriteMainLoopEnd(const int nProductCount, const CString& strProductId, const int nMainThreadIdx = 1)
+	{
+		m_pImpl->WriteMainLoopEnd(nProductCount, strProductId, nMainThreadIdx);
+	}
+
+	void WriteProcessLog(const int nProductCount, const CString& strProductId, const EProcessLogThread eLogThread, const int nThreadIdx, const CString& strLogContent, const EPreTag ePreTag = EPreTag::None, const EPostTag ePostTag = EPostTag::None)
+	{
+		m_pImpl->WriteProcessLog(nProductCount, strProductId, eLogThread, nThreadIdx, strLogContent, ePreTag, ePostTag);
+	}
+
+	void WriteSystemLog(const int nProductCount, const CString& strProductId, const ESystemLogThread eLogThread, const CString& strLogContent, const EPreTag ePreTag = EPreTag::None, const EPostTag ePostTag = EPostTag::None)
+	{
+		m_pImpl->WriteSystemLog(nProductCount, strProductId, eLogThread, strLogContent, ePreTag, ePostTag);
+	}
+
+	void WriteAlarmLog(const int nProductCount, const CString& strProductId, const CString& strLogContent)
+	{
+		m_pImpl->WriteAlarmLog(nProductCount, strProductId, strLogContent);
+	}
+
+	void WriteResultLog(const int nProductCount, const CString& strModuleId, const CString& strCellId, const EResultValue eResultValue, const CString& strImgPath, const std::vector<CString>& vctLogs = std::vector<CString> {})
+	{
+		m_pImpl->WriteResultLog(nProductCount, strModuleId, strCellId, eResultValue, strImgPath, vctLogs);
+	}
+
+	static std::shared_ptr<CStandardizedLogger> GetInstance();
+
+private:
+
+	CStandardizedLogger();
+
+	CStandardizedLogger(const CStandardizedLogger&) = delete;
+
+	CStandardizedLogger& operator=(const CStandardizedLogger&) = delete;
+
+	static std::shared_ptr<CStandardizedLogger> s_instance;
+
+	static CCriticalSection s_lockSection;
+
+	std::unique_ptr<CStandardizedLoggerPrivate> m_pImpl;
+};
+
 
