@@ -7,9 +7,16 @@ std::shared_ptr<CStandardizedLogger> CStandardizedLogger::s_instance = nullptr;
 
 CStandardizedLogger::CStandardizedLogger()
 	: m_pImpl(nullptr)
+	, m_pUIView(nullptr)
 {
 	m_pImpl = std::make_unique<CStandardizedLoggerImpl>();
 	m_pImpl->init();
+}
+
+void CStandardizedLogger::SetFormView(IPrintUI * pUIView)
+{
+	_ASSERT(pUIView != nullptr);
+	m_pUIView = pUIView;
 }
 
 std::shared_ptr<CStandardizedLogger> CStandardizedLogger::GetInstance()

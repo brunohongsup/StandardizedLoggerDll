@@ -5,7 +5,8 @@
 #include <Shlwapi.h>
 #include <cassert>
 #include <afxmt.h>
-#include <afxwin.h>
+#include <atlstr.h>
+#include "IPrintUI.h"
 
 class CStandardizedLoggerImpl;
 
@@ -304,6 +305,8 @@ public:
 		m_pImpl->WriteResultLog(nProductCount, strModuleId, strCellId, eResultValue, strImgPath, vctLogs);
 	}
 
+	void SetFormView(IPrintUI* pUIView);
+
 	static std::shared_ptr<CStandardizedLogger> GetInstance();
 
 private:
@@ -319,6 +322,9 @@ private:
 	static CCriticalSection s_lockSection;
 
 	std::unique_ptr<CStandardizedLoggerPrivate> m_pImpl;
+
+	IPrintUI* m_pUIView;
+
 };
 
 
