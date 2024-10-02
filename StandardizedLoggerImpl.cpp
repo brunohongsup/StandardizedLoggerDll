@@ -132,7 +132,7 @@ void CStandardizedLoggerImpl::WriteProcessLog(const int nProductCount, const CSt
 	strLogContents.AppendFormat(_T("%s,"), strProductId);
 
 	CString strThreadName;
-	strThreadName.AppendFormat(_T("%s-%d,"), StandardizedLogging::GetProcessLogThreadName(eLogThread), nThreadIdx);
+	strThreadName.AppendFormat(_T("[%s-%d],"), StandardizedLogging::GetProcessLogThreadName(eLogThread), nThreadIdx);
 	strLogContents.AppendFormat(strThreadName);
 
 	if(ePreTag != StandardizedLogging::EPreTag::None)
@@ -308,7 +308,7 @@ CString CStandardizedLoggerImpl::GetLogFilePath(const CTime& curTime, const ESys
 	const CString strSystemName = GetSystemName(eName);
 	const CString strLogFileType = GetLogTypeString(eLogType);
 
-	strLogFilePath.AppendFormat(_T("I_INSPID_%s_%s_%s_%04d%02d%02d%02d.txt"), strSystemName, strLogFileType, m_strExeFileName, nYear, nMonth, nDay, nHour);
+	strLogFilePath.AppendFormat(_T("I_INSPID_%s-VISION_%s_%s_%04d%02d%02d%02d.txt"), strSystemName, strLogFileType, m_strExeFileName, nYear, nMonth, nDay, nHour);
 
 	return strLogFilePath;
 }
