@@ -332,8 +332,8 @@ void CStandardizedLoggerImpl::Clear()
 	while(!m_queueLogItem.empty())
 	{
 		auto item = m_queueLogItem.front();
-		item->Save();
 		m_queueLogItem.pop();
+		item->Save();
 	}
 }
 
@@ -410,7 +410,12 @@ bool CStandardizedLoggerImpl::SLogItem::Save()
 		}
 	}
 
-	HANDLE hFile = CreateFile(strFilePath,                // name of the write
+	HANDLE hFile = nullptr;
+	bool bFileFirstCreated = false;
+	if(!PathFileExists(strFilePath))
+		bFileFirstCreated = true;
+
+	hFile = CreateFile(strFilePath,                // name of the write
 							  FILE_APPEND_DATA,          // open for writings
 							  0,                      // do not share
 							  NULL,                   // default security
@@ -422,20 +427,26 @@ bool CStandardizedLoggerImpl::SLogItem::Save()
 	{
 		DWORD dwError = GetLastError();
 		CString strMessage;
-		strMessage.Format(_T("[표준화 로그] 파일 생성에 실패했습니다. 에러 코드 %d"), dwError);
+		strMessage.Format(_T("[표준화 로그] 파일 생성에 실패 했습니다. 에러 코드 %d"), dwError);
 		AfxMessageBox(strMessage, MB_ICONWARNING);
 
 		return false;
 	}
 
 	SetFilePointer(hFile, 0, NULL, FILE_END);
+	
 	DWORD dwByesWritten {};
 	buffer = strLogContent.GetBuffer();
-	const DWORD nBufferSize = static_cast<DWORD>(_tcslen(buffer) * sizeof(TCHAR));
-	BOOL bWriteResult = WriteFile(hFile, buffer, nBufferSize, &dwByesWritten, NULL);
+	int nUtf8Len = WideCharToMultiByte(CP_UTF8, 0, buffer, -1, NULL, 0, NULL, NULL);
+	char* szUtf8Txt = new char[nUtf8Len];
+	const DWORD dwBytesToWrite = nUtf8Len - 1;
+	WideCharToMultiByte(CP_UTF8, 0, buffer, -1, szUtf8Txt, nUtf8Len, NULL, NULL);
+	BOOL bWriteResult = WriteFile(hFile, szUtf8Txt, dwBytesToWrite, &dwByesWritten, NULL);
 	CloseHandle(hFile);
 	strLogContent.ReleaseBuffer();
-	if(TRUE == bWriteResult && nBufferSize == dwByesWritten)
+	delete[] szUtf8Txt;
+
+	if(TRUE == bWriteResult && dwBytesToWrite == dwByesWritten)
 		return true;
 
 	else
@@ -470,7 +481,7 @@ bool CStandardizedLoggerImpl::SListFileLogItem::Save()
 		TCHAR buffer[nLenToRead] {};
 		const DWORD nBytesToRead = nLenToRead * sizeof(TCHAR);
 		DWORD bytesRead = 0;
-		BOOL result = ReadFile(
+		BOOL bResult = ReadFile(
 			hFile,                  // Handle to the file
 			buffer,                 // Buffer to receive data
 			nBytesToRead,         // Number of bytes to read
@@ -479,7 +490,7 @@ bool CStandardizedLoggerImpl::SListFileLogItem::Save()
 		);
 		CloseHandle(hFile);
 
-		if(result == FALSE)
+		if(bResult == FALSE)
 		{
 			DWORD dwError = GetLastError();
 			CString strMsg;
