@@ -87,7 +87,7 @@ private:
 		
 	};
 
-	void PushListLog(const CTime& curTime, const CString& strThreadName, enum class ELogThreadType eThreadType, const int nThreadIdx = -1);
+	void PushListLog(const CTime& curTime, const CString& strThreadName);
 
 	void WriteProcessLog(const int nProductCount, const CString & strProductId, const EProcessLogThread eLogThread, const int nThreadIdx, const CString & strLogContent, const EPreTag ePreTag, const EPostTag ePostTag) override;
 

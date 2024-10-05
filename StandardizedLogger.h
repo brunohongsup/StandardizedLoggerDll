@@ -299,7 +299,7 @@ public:
 		m_pImpl->WriteAlarmLog(nProductCount, strProductId, strLogContent);
 	}
 
-	void WriteResultLog(const int nProductCount, const CString& strModuleId, const CString& strCellId, const EResultValue eResultValue, const CString& strImgPath, const std::vector<CString>& vctLogs = std::vector<CString> {})
+	void WriteResultLog(const int nProductCount, const CString& strModuleId, const CString& strCellId, const EResultValue eResultValue, const CString& strImgPath, const std::vector<CString>& vctLogs = std::vector<CString>{})
 	{
 		m_pImpl->WriteResultLog(nProductCount, strModuleId, strCellId, eResultValue, strImgPath, vctLogs);
 	}
