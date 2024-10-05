@@ -9,6 +9,7 @@
 #include <afxwin.h>
 #include <atomic>
 #include <shlwapi.h>
+#include <cctype>
 #include "StandardizedLogger.h"
 
 #pragma comment(lib, "Shlwapi.lib")
@@ -21,18 +22,7 @@ public:
 
 private:
 
-	struct SLogItem
-	{
-		CString strFilePath;
-		CString strLogContent;
-
-		virtual bool Save();
-	};
-
-	struct SListFileLogItem : public SLogItem
-	{
-		bool Save() override;
-	};
+	
 
 	typedef StandardizedLogging::EPostTag EPostTag;
 
@@ -73,12 +63,31 @@ private:
 		ImgProcess,
 		SaveData,
 		SaveImg,
+		SaveEtc,
+		Inspect,
+		_3DCamera,
 		Result,
 		System,
 		Alarm,
+		SaveProcess,
 	};
 
-	void PushListLog(const CTime& curTime, const CString& strThreadName);
+	struct SLogItem
+	{
+		CString strFilePath;
+		CString strLogContent;
+
+		virtual bool Save();
+	};
+
+	struct SListFileLogItem : public SLogItem
+	{
+		bool Save() override;
+
+		
+	};
+
+	void PushListLog(const CTime& curTime, const CString& strThreadName, enum class ELogThreadType eThreadType, const int nThreadIdx = -1);
 
 	void WriteProcessLog(const int nProductCount, const CString & strProductId, const EProcessLogThread eLogThread, const int nThreadIdx, const CString & strLogContent, const EPreTag ePreTag, const EPostTag ePostTag) override;
 
