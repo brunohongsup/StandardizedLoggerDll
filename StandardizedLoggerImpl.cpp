@@ -282,14 +282,16 @@ CString CStandardizedLoggerImpl::GetLogFilePath(const CTime& curTime, const ESys
 		DWORD dwBytesWritten = 0;
 		BOOL bRet = WriteFile(hDrive, szTestData, dwDataSize, &dwBytesWritten, nullptr);
 		if(bRet && dwDataSize == dwBytesWritten)
-		{
-			if(dwDataSize == dwBytesWritten)
-				bCanWriteToDDrive = true;
-		}
+			bCanWriteToDDrive = true;
+		
+		bRet = CloseHandle(hDrive);
+		bRet = DeleteFile(strTestFilePath);
 	}
 
 	if(bCanWriteToDDrive)
+	{
 		strLogFilePath.AppendFormat(_T("D:\\"));
+	}
 
 	else
 		strLogFilePath.AppendFormat(_T("C:\\"));
