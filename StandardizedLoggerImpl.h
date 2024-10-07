@@ -83,8 +83,6 @@ private:
 	struct SListFileLogItem : public SLogItem
 	{
 		bool Save() override;
-
-		
 	};
 
 	void PushListLog(const CTime& curTime, const CString& strThreadName);

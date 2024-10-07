@@ -83,7 +83,6 @@ void CStandardizedLoggerImpl::PushLogItemToQueue(const std::shared_ptr<SLogItem>
 {
 	CSingleLock lock(&m_csQueue);
 	lock.Lock();
-
 	pItem->strLogContent.AppendFormat(_T("\n"));
 	m_queueLogItem.push(pItem);
 }
@@ -104,6 +103,7 @@ bool CStandardizedLoggerImpl::PopLogItem(std::shared_ptr<SLogItem>& pItem)
 		m_queueLogItem.pop();
 		return true;
 	}
+
 }
 
 void CStandardizedLoggerImpl::PushListLog(const CTime & curTime, const CString & strThreadName)
@@ -241,57 +241,53 @@ void CStandardizedLoggerImpl::WriteSystemLog(const int nProductCount, const CStr
 	PushListLog(curTime, strThreadName);
 }
 
-bool DoesDriveExist(char driveLetter)
-{
-	DWORD drives = GetLogicalDrives();
-	if(drives & (1 << (driveLetter - 'A')))
-		return true;
-
-	else
-		return false;
-}
-
 CString CStandardizedLoggerImpl::GetLogFilePath(const CTime& curTime, const ESystemName eName, const ELogFileType eLogType) const
 {
 	CString strLogFilePath;
 	const TCHAR d_Drive = _T('D');
 	bool bCanWriteToDDrive = false;
 	DWORD drives = GetLogicalDrives();
-	if(drives & (1 << (d_Drive - _T('A'))))
+	bool bDdriveExist = drives & (1 << (d_Drive - _T('A')));
+	do
 	{
-		CString strTestFilePath;
-		strTestFilePath.AppendFormat(_T("%s:\\Test.txt"), d_Drive);
-		HANDLE hDrive = CreateFile(
-			strTestFilePath,
-			GENERIC_WRITE,
-			FILE_SHARE_WRITE,
-			NULL,
-			OPEN_EXISTING,
-			0,
-			NULL
-		);
-
-		if(hDrive == INVALID_HANDLE_VALUE)
+		if(bDdriveExist)
 		{
-			DWORD dwError = GetLastError();
-			TRACE(_T("The Error Code is %d\n"), dwError);
+			CString strTestFilePath;
+			strTestFilePath.AppendFormat(_T("%s:\\Test.txt"), d_Drive);
+			HANDLE hDrive = CreateFile(
+				strTestFilePath,
+				GENERIC_WRITE,
+				FILE_SHARE_WRITE,
+				NULL,
+				OPEN_EXISTING,
+				0,
+				NULL
+			);
+
+			if(hDrive == INVALID_HANDLE_VALUE)
+			{
+				DWORD dwError = GetLastError();
+				TRACE(_T("The Error Code is %d\n"), dwError);
+				break;
+			}
+
+			const TCHAR szTestData[] = _T("Test Data");
+			const DWORD dwDataSize = (DWORD)(_tcslen(szTestData) * sizeof(TCHAR));
+			DWORD dwBytesWritten = 0;
+			BOOL bRet = WriteFile(hDrive, szTestData, dwDataSize, &dwBytesWritten, nullptr);
+			if(bRet && dwDataSize == dwBytesWritten)
+				bCanWriteToDDrive = true;
+
+			bRet = CloseHandle(hDrive);
+			bRet = DeleteFile(strTestFilePath);
 		}
 
-		const TCHAR szTestData[] = _T("Test Data");
-		const DWORD dwDataSize = (DWORD)(_tcslen(szTestData) * sizeof(TCHAR));
-		DWORD dwBytesWritten = 0;
-		BOOL bRet = WriteFile(hDrive, szTestData, dwDataSize, &dwBytesWritten, nullptr);
-		if(bRet && dwDataSize == dwBytesWritten)
-			bCanWriteToDDrive = true;
-		
-		bRet = CloseHandle(hDrive);
-		bRet = DeleteFile(strTestFilePath);
 	}
+	while(false);
+
 
 	if(bCanWriteToDDrive)
-	{
 		strLogFilePath.AppendFormat(_T("D:\\"));
-	}
 
 	else
 		strLogFilePath.AppendFormat(_T("C:\\"));
@@ -347,16 +343,16 @@ CStandardizedLoggerImpl::CStandardizedLoggerImpl()
 
 }
 
-void CStandardizedLoggerImpl::SetVisionSystemMajorName(const CString& strMachineName)
+void CStandardizedLoggerImpl::SetVisionSystemMajorName(const CString& strMajorMachineName)
 {
-	m_strVisionSystemMinorName.Empty();
-	m_strVisionSystemMinorName.AppendFormat(strMachineName);
+	m_strVisionSystemMajorName.Empty();
+	m_strVisionSystemMajorName.AppendFormat(strMajorMachineName);
 }
 
-void CStandardizedLoggerImpl::SetVisionSystemMinorName(const CString& strMinorName)
+void CStandardizedLoggerImpl::SetVisionSystemMinorName(const CString& strMinorMachineName)
 {
 	m_strVisionSystemMinorName.Empty();
-	m_strVisionSystemMinorName.AppendFormat(strMinorName);
+	m_strVisionSystemMinorName.AppendFormat(strMinorMachineName);
 }
 
 CString CStandardizedLoggerImpl::GetVisionSystemMajorName() const
