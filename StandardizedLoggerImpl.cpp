@@ -220,8 +220,8 @@ void CStandardizedLoggerImpl::WriteSystemLog(const int nProductCount, const CStr
 	strLogContents.AppendFormat(_T("%010d,"), nProductCount);
 	strLogContents.AppendFormat(_T("%s,"), strProductId);
 	CString strThreadName;
-	strThreadName.Format(_T("%s,"), StandardizedLogging::GetSystemLogThreadName(eSystemLogThread));
-	strLogContents.AppendFormat(strThreadName);
+	strThreadName.Format(_T("%s"), StandardizedLogging::GetSystemLogThreadName(eSystemLogThread));
+	strLogContents.AppendFormat(_T("%s,"), strThreadName);
 
 	if(ePreTag != StandardizedLogging::EPreTag::None)
 	{
