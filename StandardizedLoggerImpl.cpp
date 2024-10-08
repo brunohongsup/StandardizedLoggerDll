@@ -238,7 +238,7 @@ void CStandardizedLoggerImpl::WriteSystemLog(const int nProductCount, const CStr
 
 	strLogPath.AppendFormat(GetLogFilePath(curTime, ESystemName::Minor, ELogFileType::SystemLog));
 	PushLogItemToQueue(pLogItem);
-	PushListLog(curTime, strThreadName);
+	PushListLog(curTime, _T("SYSTEM"));
 }
 
 CString CStandardizedLoggerImpl::GetLogFilePath(const CTime& curTime, const ESystemName eName, const ELogFileType eLogType) const
