@@ -103,7 +103,6 @@ bool CStandardizedLoggerImpl::PopLogItem(std::shared_ptr<SLogItem>& pItem)
 		m_queueLogItem.pop();
 		return true;
 	}
-
 }
 
 void CStandardizedLoggerImpl::PushListLog(const CTime & curTime, const CString & strThreadName)
@@ -132,8 +131,8 @@ void CStandardizedLoggerImpl::WriteProcessLog(const int nProductCount, const CSt
 	strLogContents.AppendFormat(_T("%s,"), strProductId);
 
 	CString strThreadName;
-	strThreadName.AppendFormat(_T("[%s-%d]"), StandardizedLogging::GetProcessLogThreadName(eLogThread), nThreadIdx);
-	strLogContents.AppendFormat(_T("%s,"), strThreadName);
+	strThreadName.AppendFormat(_T("%s-%d"), StandardizedLogging::GetProcessLogThreadName(eLogThread), nThreadIdx);
+	strLogContents.AppendFormat(_T("[%s],"), strThreadName);
 
 	if(ePreTag != StandardizedLogging::EPreTag::None)
 	{
@@ -247,8 +246,8 @@ CString CStandardizedLoggerImpl::GetLogFilePath(const CTime& curTime, const ESys
 	const TCHAR d_Drive = _T('D');
 	bool bCanWriteToDDrive = false;
 	DWORD drives = GetLogicalDrives();
-	bool bDdriveExist = drives & (1 << (d_Drive - _T('A')));
-	do
+	bool bDdriveExist =  drives & (1 << (d_Drive - _T('A')));
+	do 
 	{
 		if(bDdriveExist)
 		{
@@ -282,9 +281,7 @@ CString CStandardizedLoggerImpl::GetLogFilePath(const CTime& curTime, const ESys
 			bRet = DeleteFile(strTestFilePath);
 		}
 
-	}
-	while(false);
-
+	} while (false);
 
 	if(bCanWriteToDDrive)
 		strLogFilePath.AppendFormat(_T("D:\\"));
@@ -330,8 +327,10 @@ void CStandardizedLoggerImpl::Clear()
 	while(!m_queueLogItem.empty())
 	{
 		auto item = m_queueLogItem.front();
-		m_queueLogItem.pop();
-		item->Save();
+		bool bRet = item->Save();
+		if(bRet)
+			m_queueLogItem.pop();
+
 	}
 }
 
@@ -343,16 +342,16 @@ CStandardizedLoggerImpl::CStandardizedLoggerImpl()
 
 }
 
-void CStandardizedLoggerImpl::SetVisionSystemMajorName(const CString& strMajorMachineName)
-{
-	m_strVisionSystemMajorName.Empty();
-	m_strVisionSystemMajorName.AppendFormat(strMajorMachineName);
-}
-
-void CStandardizedLoggerImpl::SetVisionSystemMinorName(const CString& strMinorMachineName)
+void CStandardizedLoggerImpl::SetVisionSystemMajorName(const CString& strMachineName)
 {
 	m_strVisionSystemMinorName.Empty();
-	m_strVisionSystemMinorName.AppendFormat(strMinorMachineName);
+	m_strVisionSystemMinorName.AppendFormat(strMachineName);
+}
+
+void CStandardizedLoggerImpl::SetVisionSystemMinorName(const CString& strMinorName)
+{
+	m_strVisionSystemMinorName.Empty();
+	m_strVisionSystemMinorName.AppendFormat(strMinorName);
 }
 
 CString CStandardizedLoggerImpl::GetVisionSystemMajorName() const
@@ -524,7 +523,7 @@ bool CStandardizedLoggerImpl::SListFileLogItem::Save()
 					else
 					{
 						nFindCur = nFindNext + strTmp.size();
-						nFindCur += 3;
+						nFindCur += 2;
 						nFindNext = strBufRead.find(strTmp, nFindNext + 1);
 					}
 				}

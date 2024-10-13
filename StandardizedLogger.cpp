@@ -14,7 +14,6 @@ CStandardizedLogger::CStandardizedLogger()
 
 std::shared_ptr<CStandardizedLogger> CStandardizedLogger::GetInstance()
 {
-
 	if(s_instance == nullptr)
 	{
 		CSingleLock lock(&s_lockSection);
