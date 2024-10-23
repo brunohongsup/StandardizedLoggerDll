@@ -72,6 +72,46 @@ bool CStandardizedLoggerImpl::init()
 		else
 			m_strExeFileName.AppendFormat(_T("ExeFileNameLookUpError"));
 
+		TCHAR cDDrive = _T('D');
+		DWORD dwDrives = GetLogicalDrives();
+		bool bDdriveExist = dwDrives & (1 << (cDDrive - _T('A')));
+		do
+		{
+			if(bDdriveExist)
+			{
+				CString strTestFilePath;
+				strTestFilePath.AppendFormat(_T("%c:\\Test.txt"), cDDrive);
+				HANDLE hDrive = CreateFile(
+					strTestFilePath,
+					GENERIC_WRITE,
+					FILE_SHARE_WRITE,
+					NULL,
+					OPEN_ALWAYS,
+					0,
+					NULL
+				);
+
+				if(hDrive == INVALID_HANDLE_VALUE)
+				{
+					DWORD dwError = GetLastError();
+					TRACE(_T("The Error Code is %d\n"), dwError);
+					break;
+				}
+
+				const TCHAR szTestData[] = _T("Test Data");
+				const DWORD dwDataSize = (DWORD)(_tcslen(szTestData) * sizeof(TCHAR));
+				DWORD dwBytesWritten = 0;
+				BOOL bRet = WriteFile(hDrive, szTestData, dwDataSize, &dwBytesWritten, nullptr);
+				if(bRet && dwDataSize == dwBytesWritten)
+					m_bCanWriteToDDrive = true;
+
+				bRet = CloseHandle(hDrive);
+				bRet = DeleteFile(strTestFilePath);
+				BOOL bCreateResult = CreateDirectory(_T("D:\\LOG_SW"), NULL);
+			}
+
+		}
+		while(false);
 		StartSaveStandardLogThread();
 	}
 	while(false);
@@ -243,47 +283,7 @@ void CStandardizedLoggerImpl::WriteSystemLog(const int nProductCount, const CStr
 CString CStandardizedLoggerImpl::GetLogFilePath(const CTime& curTime, const ESystemName eName, const ELogFileType eLogType) const
 {
 	CString strLogFilePath;
-	const TCHAR d_Drive = _T('D');
-	bool bCanWriteToDDrive = false;
-	DWORD drives = GetLogicalDrives();
-	bool bDdriveExist =  drives & (1 << (d_Drive - _T('A')));
-	do 
-	{
-		if(bDdriveExist)
-		{
-			CString strTestFilePath;
-			strTestFilePath.AppendFormat(_T("%s:\\Test.txt"), d_Drive);
-			HANDLE hDrive = CreateFile(
-				strTestFilePath,
-				GENERIC_WRITE,
-				FILE_SHARE_WRITE,
-				NULL,
-				OPEN_EXISTING,
-				0,
-				NULL
-			);
-
-			if(hDrive == INVALID_HANDLE_VALUE)
-			{
-				DWORD dwError = GetLastError();
-				TRACE(_T("The Error Code is %d\n"), dwError);
-				break;
-			}
-
-			const TCHAR szTestData[] = _T("Test Data");
-			const DWORD dwDataSize = (DWORD)(_tcslen(szTestData) * sizeof(TCHAR));
-			DWORD dwBytesWritten = 0;
-			BOOL bRet = WriteFile(hDrive, szTestData, dwDataSize, &dwBytesWritten, nullptr);
-			if(bRet && dwDataSize == dwBytesWritten)
-				bCanWriteToDDrive = true;
-
-			bRet = CloseHandle(hDrive);
-			bRet = DeleteFile(strTestFilePath);
-		}
-
-	} while (false);
-
-	if(bCanWriteToDDrive)
+	if(m_bCanWriteToDDrive)
 		strLogFilePath.AppendFormat(_T("D:\\"));
 
 	else
@@ -374,10 +374,25 @@ BOOL CreateDirectoryRecursive(const CString& strPath)
 		if(*p == _T('\\') || *p == _T('/'))
 		{
 			*p = _T('\0');
-			if(!CreateDirectory(szPath, NULL) && GetLastError() != ERROR_ALREADY_EXISTS)
+			CString strDir;
+			strDir.AppendFormat(szPath);
+			bool bDrive = strDir[strDir.GetLength() - 1] == _T(':');
+			if(!bDrive)
 			{
-				return FALSE;
+				BOOL bCreateResult = CreateDirectory(szPath, NULL);
+				if(!bCreateResult)
+				{
+
+					DWORD dwError = GetLastError();
+					if(dwError != ERROR_ALREADY_EXISTS)
+					{
+						return false;
+					}
+				}
+
+
 			}
+
 			*p = _T('\\');
 		}
 	}
@@ -397,7 +412,7 @@ bool CStandardizedLoggerImpl::SLogItem::Save()
 	if(!PathFileExists(strDirPath))
 	{
 		BOOL ret = CreateDirectoryRecursive(strDirPath);
-		if(ret == FALSE)
+		if(!ret)
 		{
 			DWORD dwError = GetLastError();
 			CString strMsg;

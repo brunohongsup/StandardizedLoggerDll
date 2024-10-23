@@ -142,6 +142,8 @@ private:
 	CString m_strVisionSystemMinorName;
 
 	CString m_strVisionSystemMajorName;
+
+	bool m_bCanWriteToDDrive;
 };
 
 
