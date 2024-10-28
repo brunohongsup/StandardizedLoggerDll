@@ -11,6 +11,16 @@ class CStandardizedLoggerImpl;
 
 namespace StandardizedLogging
 {
+	enum class EMacro
+	{
+		CamInit = 0,
+		CamGrab,
+		CamGrabEnd,
+	};
+
+
+
+
 	enum class EPreTag
 	{
 		None = 0,
@@ -85,6 +95,25 @@ namespace StandardizedLogging
 		Database,
 		CellTracker,
 	};
+
+	static CString GetMacroString(const EMacro eData)
+	{
+		static const LPCTSTR lpszData[] =
+		{
+			_T("[S-O],Cam,Init"),
+			_T("[I-I],Cam,Grb"),
+			_T("[S-O],Cam,Ed"),
+		};
+
+
+		const int nIndesx = static_cast<int>(eData);
+		return lpszData[nIndesx];
+	};
+
+
+
+
+
 
 	static CString GetPostTagString(const EPostTag tag)
 	{
@@ -229,6 +258,20 @@ private:
 
 	virtual void WriteAlarmLog(const int nProductCount, const CString& strProductId, const CString& strLogContent) = 0;
 
+
+
+
+
+
+
+
+	virtual void WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const StandardizedLogging::EMacro eData) = 0;
+
+	virtual void WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const CString strContent, ...) = 0;
+	virtual void WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const StandardizedLogging::EPreTag ePreTag, const CString strContent, ...) = 0;
+	virtual void WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const StandardizedLogging::EPreTag ePreTag, const StandardizedLogging::EPostTag ePostTag, const CString strContent, ...) = 0;
+
+
 protected:
 
 };
@@ -305,6 +348,38 @@ public:
 	}
 
 	static std::shared_ptr<CStandardizedLogger> GetInstance();
+
+
+
+
+
+	void WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const StandardizedLogging::EMacro eData)
+	{
+		m_pImpl->WriteProcessLog(eLogThread, nThreadIdx, strProductID, eData);
+	}
+
+
+
+	template<typename... Args>
+	void WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const CString strContent, Args&&... args)
+	{
+		m_pImpl->WriteProcessLog(eLogThread, nThreadIdx, strProductID, strContent, std::forward<Args>(args)...);
+	}
+
+	template<typename... Args2>
+	void WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const StandardizedLogging::EPreTag ePreTag, const CString strContent, Args2&&... args)
+	{
+		m_pImpl->WriteProcessLog(eLogThread, nThreadIdx, strProductID, ePreTag, strContent, std::forward<Args>(args)...);
+	}
+
+	template<typename... Args3>
+	void WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const StandardizedLogging::EPreTag ePreTag, const StandardizedLogging::EPostTag ePostTag, const CString strContent, Args3&&... args)
+	{
+		m_pImpl->WriteProcessLog(eLogThread, nThreadIdx, strProductID, ePreTag, ePostTag, strContent, std::forward<Args>(args)...);
+	}
+
+
+
 
 private:
 

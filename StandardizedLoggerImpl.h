@@ -72,6 +72,7 @@ private:
 		SaveProcess,
 	};
 
+
 	struct SLogItem
 	{
 		CString strFilePath;
@@ -79,6 +80,35 @@ private:
 
 		virtual bool Save();
 	};
+
+	struct SLogData
+	{
+		int nIndex = 0;
+
+		CString strThreadName = _T("");
+		CString strFile = _T("");
+		
+		CString strTime = _T("");
+		CString strID = _T("");
+
+		EPreTag ePreTag = EPreTag::None;
+		CString strLogData = _T("");
+		EPostTag ePostTag= EPostTag::None;
+
+
+		bool operator <(const SLogData &sValue) const
+		{
+			if(nIndex != sValue.nIndex)
+			{
+				return nIndex < sValue.nIndex;
+			}
+			else
+			{
+				return nIndex < sValue.nIndex;
+			}
+		}
+	};
+
 
 	struct SListFileLogItem : public SLogItem
 	{
@@ -144,6 +174,30 @@ private:
 	CString m_strVisionSystemMajorName;
 
 	bool m_bCanWriteToDDrive;
+
+
+
+
+
+
+
+
+
+	void SaveLogData(CString strID, int nProductIndex, SLogData sData);
+
+	int m_nProductIndex = 0;
+	//key = Thread Name
+	std::map<CString, std::vector<SLogData>> m_mapLogData;
+	std::map<CString, CString> m_mapBeforeID;
+	std::map<CString, int> m_mapProductIndex;
+
+	void StartMainLoop();
+
+	void WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const CString strContent, ...);
+	void WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID,  const EPreTag ePreTag, const CString strContent, ...);
+	void WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const EPreTag ePreTag, const EPostTag ePostTag, const CString strContent, ...);
+
+	void WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const StandardizedLogging::EMacro eData);
 };
 
 

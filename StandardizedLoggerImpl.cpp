@@ -13,28 +13,45 @@ void CStandardizedLoggerImpl::WriteMainLoopEnd(const int nProductCount, const CS
 	WriteProcessLog(nProductCount, strProductId, EProcessLogThread::MainThread, nMainThreadIdx, m_strVisionSystemMinorName, EPreTag::None, EPostTag::MainLoopEnd);
 }
 
+
 UINT CStandardizedLoggerImpl::SaveLogThreading(LPVOID pParam)
 {
 	auto* pInstance = (CStandardizedLoggerImpl*)pParam;
 	while(pInstance->m_bThreadRunning)
 	{
-		std::shared_ptr<SLogItem> pLogItem { nullptr };
-		bool bItemExist = pInstance->PopLogItem(pLogItem);
-		if(!bItemExist)
+		for(auto& pair : pInstance->m_mapLogData)
 		{
-			Sleep(5000);
-			continue;
-		}
-		else
-		{
-			bool bSaveResult = false;
-			do
+			bool bReadID = false;
+			
+			for(int i = 0; i < pair.second.size(); i++)
 			{
-				bSaveResult = pLogItem->Save();
-				Sleep(3);
+				if((pair.second[i].strID == _T("") || pair.second[i].strID == _T("NULL")) && !bReadID)
+				{
+					pair.second[i].strID = _T("NULL");
+					continue;
+				}
+
+				if(!bReadID)
+				{
+					CString strBefore = pInstance->m_mapBeforeID[pair.first];
+					if(strBefore != pair.second[i].strID)
+					{
+						pInstance->m_nProductIndex++;
+						pInstance->m_mapBeforeID[pair.first] = pair.second[i].strID;
+						pInstance->m_mapProductIndex[pair.first] = pInstance->m_nProductIndex;
+					}
+					i = 0;
+					bReadID = true;
+				}
+
+				pInstance->SaveLogData(pair.second[i].strID, pInstance->m_mapProductIndex[pair.first], pair.second[i]);
 			}
-			while(!bSaveResult);
+
+			if(bReadID)
+				pInstance->m_mapLogData[pair.first].clear();
 		}
+
+		Sleep(10);
 	}
 
 	SetEvent(pInstance->m_hThreadTerminatedEvent);
@@ -293,11 +310,10 @@ CString CStandardizedLoggerImpl::GetLogFilePath(const CTime& curTime, const ESys
 	const int nMonth = curTime.GetMonth();
 	const int nDay = curTime.GetDay();
 	const int nHour = curTime.GetHour();
-	strLogFilePath.AppendFormat(_T("LOG_SW\\%04d%02d%02d%02d\\%02d\\"),
+	strLogFilePath.AppendFormat(_T("LOG_SW\\%04d%02d%02d\\%02d\\"),
 								nYear,
 								nMonth,
 								nDay,
-								nHour,
 								nHour);
 
 	const CString strSystemName = GetSystemName(eName);
@@ -587,3 +603,218 @@ CString GetFormattedTime(const CTime& curTime)
 	return formattedTime;
 }
 
+
+
+
+
+void CStandardizedLoggerImpl::SaveLogData(CString strID, int nProductIndex, SLogData sData)
+{
+	auto& strFilePath = sData.strFile;
+
+	CString strLogData, strDirPath;
+	strLogData.AppendFormat(_T("L[%s],"), sData.strTime);
+	strLogData.AppendFormat(_T("%010d,"), nProductIndex);
+	strLogData.AppendFormat(_T("%s,"), strID);
+
+	strLogData.AppendFormat(_T("[%s],"), sData.strThreadName);
+
+ 	if(sData.ePreTag != StandardizedLogging::EPreTag::None)
+ 	{
+ 		CString strPreTag = GetPreTagString(sData.ePreTag);
+ 		strLogData.AppendFormat(_T("%s,"), strPreTag);
+ 	}
+ 
+	strLogData.AppendFormat(_T("%s"), sData.strLogData);
+
+ 	if(sData.ePostTag != StandardizedLogging::EPostTag::None)
+ 	{
+ 		CString strPostTag = GetPostTagString(sData.ePostTag);
+ 		strLogData.AppendFormat(_T(",%s"), strPostTag);
+ 	}
+
+	CTime curTime = CTime::GetCurrentTime();
+	strDirPath.AppendFormat(GetLogFilePath(curTime, ESystemName::Minor, ELogFileType::ProcessLog));
+
+	strFilePath = strDirPath;
+	LPTSTR buffer = strDirPath.GetBuffer();
+	PathRemoveFileSpec(buffer);
+	strDirPath.ReleaseBuffer();
+	if(!PathFileExists(strDirPath))
+	{
+		BOOL ret = CreateDirectoryRecursive(strDirPath);
+		if(!ret)
+		{
+			DWORD dwError = GetLastError();
+			CString strMsg;
+			strMsg.Format(_T("[표준화 로그] 경로 생성에 실패하였습니다. 에러 코드 %d"), dwError);
+			return;
+		}
+	}
+
+	HANDLE hFile = CreateFile(strFilePath,                // name of the write
+							  FILE_APPEND_DATA,          // open for writings
+							  0,                      // do not share
+							  NULL,                   // default security
+							  OPEN_ALWAYS,             // create new file only
+							  FILE_ATTRIBUTE_NORMAL,  // normal file
+							  NULL);                  // no attr. template
+
+	if(hFile == INVALID_HANDLE_VALUE)
+	{
+		DWORD dwError = GetLastError();
+		CString strMessage;
+		strMessage.Format(_T("[표준화 로그] 파일 생성에 실패 했습니다. 에러 코드 %d"), dwError);
+
+		return;
+	}
+
+	SetFilePointer(hFile, 0, NULL, FILE_END);
+	DWORD dwByesWritten {};
+	strLogData += _T("\n");
+	buffer = strLogData.GetBuffer();
+	int nUtf8Len = WideCharToMultiByte(CP_UTF8, 0, buffer, -1, NULL, 0, NULL, NULL);
+	std::string strWrite;
+	strWrite.reserve(nUtf8Len);
+	const DWORD dwBytesToWrite = nUtf8Len - 1;
+	WideCharToMultiByte(CP_UTF8, 0, buffer, -1, &strWrite[0], nUtf8Len, NULL, NULL);
+	BOOL bWriteResult = WriteFile(hFile, &strWrite[0], dwBytesToWrite, &dwByesWritten, NULL);
+	CloseHandle(hFile);
+	strLogData.ReleaseBuffer();
+
+	if(TRUE == bWriteResult && dwBytesToWrite == dwByesWritten)
+		return;
+
+	else
+		return;
+}
+
+
+
+void CStandardizedLoggerImpl::WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const CString strContent, ...)
+{
+	CString strResult;
+	va_list args;
+	va_start(args, strContent);
+	try
+	{
+		strResult.FormatV(strContent, args);
+	}
+	catch(...)
+	{
+		va_end(args);
+		return;
+	}
+
+	va_end(args);
+
+
+	CTime curTime = CTime::GetCurrentTime();
+	CString strLogTime = GetFormattedTime(curTime);
+	SLogData sData;
+
+	sData.strThreadName.Format(_T("%s-%d"), StandardizedLogging::GetProcessLogThreadName(eLogThread), nThreadIdx);
+
+	sData.strTime = strLogTime;
+	sData.strID = strProductID;
+	sData.strLogData = strResult;
+
+	m_mapLogData[sData.strThreadName].push_back(sData);
+
+	//PushLogItemToQueue(pLogItem);
+	//PushListLog(curTime, strThreadName);
+}
+
+
+
+void CStandardizedLoggerImpl::WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const EPreTag ePreTag, const CString strContent, ...)
+{
+	CString strResult;
+	va_list args;
+	va_start(args, strContent);
+	try
+	{
+		strResult.FormatV(strContent, args);
+	}
+	catch(...)
+	{
+		va_end(args);
+		return;
+	}
+
+	va_end(args);
+
+
+	CTime curTime = CTime::GetCurrentTime();
+	CString strLogTime = GetFormattedTime(curTime);
+	SLogData sData;
+
+	sData.strThreadName.Format(_T("%s-%d"), StandardizedLogging::GetProcessLogThreadName(eLogThread), nThreadIdx);
+
+	sData.strTime = strLogTime;
+	sData.strID = strProductID;
+	sData.strLogData = strResult;
+	sData.ePreTag = ePreTag;
+
+	m_mapLogData[sData.strThreadName].push_back(sData);
+
+	//PushLogItemToQueue(pLogItem);
+	//PushListLog(curTime, strThreadName);
+}
+
+
+
+void CStandardizedLoggerImpl::WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const EPreTag ePreTag, const EPostTag ePostTag, const CString strContent, ...)
+{
+	CString strResult;
+	va_list args;
+	va_start(args, strContent);
+	try
+	{
+		strResult.FormatV(strContent, args);
+	}
+	catch(...)
+	{
+		va_end(args);
+		return;
+	}
+
+	va_end(args);
+
+
+	CTime curTime = CTime::GetCurrentTime();
+	CString strLogTime = GetFormattedTime(curTime);
+	SLogData sData;
+
+	sData.strThreadName.Format(_T("%s-%d"), StandardizedLogging::GetProcessLogThreadName(eLogThread), nThreadIdx);
+
+	sData.strTime = strLogTime;
+	sData.strID = strProductID;
+	sData.strLogData = strResult;
+	sData.ePreTag = ePreTag;
+	sData.ePostTag = ePostTag;
+
+	m_mapLogData[sData.strThreadName].push_back(sData);
+
+	//PushLogItemToQueue(pLogItem);
+	//PushListLog(curTime, strThreadName);
+}
+
+
+
+void CStandardizedLoggerImpl::WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const StandardizedLogging::EMacro eData)
+{
+	CTime curTime = CTime::GetCurrentTime();
+	CString strLogTime = GetFormattedTime(curTime);
+	SLogData sData;
+
+	sData.strThreadName.Format(_T("%s-%d"), StandardizedLogging::GetProcessLogThreadName(eLogThread), nThreadIdx);
+
+	sData.strTime = strLogTime;
+	sData.strID = strProductID;
+	sData.strLogData.Format(_T("%s"), StandardizedLogging::GetMacroString(eData));
+
+	m_mapLogData[sData.strThreadName].push_back(sData);
+
+	//PushLogItemToQueue(pLogItem);
+	//PushListLog(curTime, strThreadName);
+}
