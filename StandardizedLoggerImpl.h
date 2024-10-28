@@ -10,10 +10,10 @@
 #include <atomic>
 #include <shlwapi.h>
 #include <cctype>
+#include <map>
 #include "StandardizedLogger.h"
 
 #pragma comment(lib, "Shlwapi.lib")
-
 
 class CStandardizedLoggerImpl : public CStandardizedLoggerPrivate
 {
@@ -21,8 +21,6 @@ public:
 	CStandardizedLoggerImpl();
 
 private:
-
-	
 
 	typedef StandardizedLogging::EPostTag EPostTag;
 
@@ -95,7 +93,6 @@ private:
 		CString strLogData = _T("");
 		EPostTag ePostTag= EPostTag::None;
 
-
 		bool operator <(const SLogData &sValue) const
 		{
 			if(nIndex != sValue.nIndex)
@@ -108,7 +105,6 @@ private:
 			}
 		}
 	};
-
 
 	struct SListFileLogItem : public SLogItem
 	{
@@ -155,6 +151,16 @@ private:
 
 	bool PopLogItem(std::shared_ptr<SLogItem>& pLog);
 
+	void SaveLogData(CString strID, int nProductIndex, SLogData sData);
+
+	void WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const CString strContent, ...);
+
+	void WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID,  const EPreTag ePreTag, const CString strContent, ...);
+
+	void WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const EPreTag ePreTag, const EPostTag ePostTag, const CString strContent, ...);
+
+	void WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const StandardizedLogging::EMacro eData);
+
 	CCriticalSection m_csQueue;
 
 	std::queue<std::shared_ptr<SLogItem>> m_queueLogItem;
@@ -173,31 +179,16 @@ private:
 
 	CString m_strVisionSystemMajorName;
 
-	bool m_bCanWriteToDDrive;
-
-
-
-
-
-
-
-
-
-	void SaveLogData(CString strID, int nProductIndex, SLogData sData);
-
 	int m_nProductIndex = 0;
-	//key = Thread Name
+
 	std::map<CString, std::vector<SLogData>> m_mapLogData;
+
 	std::map<CString, CString> m_mapBeforeID;
+
 	std::map<CString, int> m_mapProductIndex;
 
-	void StartMainLoop();
+	bool m_bCanWriteToDDrive;
 
-	void WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const CString strContent, ...);
-	void WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID,  const EPreTag ePreTag, const CString strContent, ...);
-	void WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const EPreTag ePreTag, const EPostTag ePostTag, const CString strContent, ...);
-
-	void WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const StandardizedLogging::EMacro eData);
 };
 
 

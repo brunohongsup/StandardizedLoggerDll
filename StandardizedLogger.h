@@ -258,13 +258,6 @@ private:
 
 	virtual void WriteAlarmLog(const int nProductCount, const CString& strProductId, const CString& strLogContent) = 0;
 
-
-
-
-
-
-
-
 	virtual void WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const StandardizedLogging::EMacro eData) = 0;
 
 	virtual void WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const CString strContent, ...) = 0;
@@ -332,33 +325,10 @@ public:
 		m_pImpl->WriteProcessLog(nProductCount, strProductId, eLogThread, nThreadIdx, strLogContent, ePreTag, ePostTag);
 	}
 
-	void WriteSystemLog(const int nProductCount, const CString& strProductId, const ESystemLogThread eLogThread, const CString& strLogContent, const EPreTag ePreTag = EPreTag::None, const EPostTag ePostTag = EPostTag::None)
-	{
-		m_pImpl->WriteSystemLog(nProductCount, strProductId, eLogThread, strLogContent, ePreTag, ePostTag);
-	}
-
-	void WriteAlarmLog(const int nProductCount, const CString& strProductId, const CString& strLogContent)
-	{
-		m_pImpl->WriteAlarmLog(nProductCount, strProductId, strLogContent);
-	}
-
-	void WriteResultLog(const int nProductCount, const CString& strModuleId, const CString& strCellId, const EResultValue eResultValue, const CString& strImgPath, const std::vector<CString>& vctLogs = std::vector<CString>{})
-	{
-		m_pImpl->WriteResultLog(nProductCount, strModuleId, strCellId, eResultValue, strImgPath, vctLogs);
-	}
-
-	static std::shared_ptr<CStandardizedLogger> GetInstance();
-
-
-
-
-
 	void WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const StandardizedLogging::EMacro eData)
 	{
 		m_pImpl->WriteProcessLog(eLogThread, nThreadIdx, strProductID, eData);
 	}
-
-
 
 	template<typename... Args>
 	void WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const CString strContent, Args&&... args)
@@ -378,6 +348,27 @@ public:
 		m_pImpl->WriteProcessLog(eLogThread, nThreadIdx, strProductID, ePreTag, ePostTag, strContent, std::forward<Args>(args)...);
 	}
 
+	void WriteSystemLog(const int nProductCount, const CString& strProductId, const ESystemLogThread eLogThread, const CString& strLogContent, const EPreTag ePreTag = EPreTag::None, const EPostTag ePostTag = EPostTag::None)
+	{
+		m_pImpl->WriteSystemLog(nProductCount, strProductId, eLogThread, strLogContent, ePreTag, ePostTag);
+	}
+
+	void WriteAlarmLog(const int nProductCount, const CString& strProductId, const CString& strLogContent)
+	{
+		m_pImpl->WriteAlarmLog(nProductCount, strProductId, strLogContent);
+	}
+
+	void WriteResultLog(const int nProductCount, const CString& strModuleId, const CString& strCellId, const EResultValue eResultValue, const CString& strImgPath, const std::vector<CString>& vctLogs = std::vector<CString>{})
+	{
+		m_pImpl->WriteResultLog(nProductCount, strModuleId, strCellId, eResultValue, strImgPath, vctLogs);
+	}
+
+	static std::shared_ptr<CStandardizedLogger> GetInstance();
+
+	
+
+
+	
 
 
 

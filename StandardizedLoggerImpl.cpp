@@ -13,7 +13,6 @@ void CStandardizedLoggerImpl::WriteMainLoopEnd(const int nProductCount, const CS
 	WriteProcessLog(nProductCount, strProductId, EProcessLogThread::MainThread, nMainThreadIdx, m_strVisionSystemMinorName, EPreTag::None, EPostTag::MainLoopEnd);
 }
 
-
 UINT CStandardizedLoggerImpl::SaveLogThreading(LPVOID pParam)
 {
 	auto* pInstance = (CStandardizedLoggerImpl*)pParam;
@@ -603,10 +602,6 @@ CString GetFormattedTime(const CTime& curTime)
 	return formattedTime;
 }
 
-
-
-
-
 void CStandardizedLoggerImpl::SaveLogData(CString strID, int nProductIndex, SLogData sData)
 {
 	auto& strFilePath = sData.strFile;
@@ -646,7 +641,7 @@ void CStandardizedLoggerImpl::SaveLogData(CString strID, int nProductIndex, SLog
 		{
 			DWORD dwError = GetLastError();
 			CString strMsg;
-			strMsg.Format(_T("[표준화 로그] 경로 생성에 실패하였습니다. 에러 코드 %d"), dwError);
+			strMsg.Format(_T("[StandardizedLogging] Failed To Make Path. Error Code %d"), dwError);
 			return;
 		}
 	}
@@ -663,7 +658,7 @@ void CStandardizedLoggerImpl::SaveLogData(CString strID, int nProductIndex, SLog
 	{
 		DWORD dwError = GetLastError();
 		CString strMessage;
-		strMessage.Format(_T("[표준화 로그] 파일 생성에 실패 했습니다. 에러 코드 %d"), dwError);
+		strMessage.Format(_T("[StandardizedLogging] Failed To Make Path. Error Code %d"), dwError);
 
 		return;
 	}
@@ -687,8 +682,6 @@ void CStandardizedLoggerImpl::SaveLogData(CString strID, int nProductIndex, SLog
 	else
 		return;
 }
-
-
 
 void CStandardizedLoggerImpl::WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const CString strContent, ...)
 {
@@ -720,11 +713,7 @@ void CStandardizedLoggerImpl::WriteProcessLog(const StandardizedLogging::EProces
 
 	m_mapLogData[sData.strThreadName].push_back(sData);
 
-	//PushLogItemToQueue(pLogItem);
-	//PushListLog(curTime, strThreadName);
 }
-
-
 
 void CStandardizedLoggerImpl::WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const EPreTag ePreTag, const CString strContent, ...)
 {
@@ -743,7 +732,6 @@ void CStandardizedLoggerImpl::WriteProcessLog(const StandardizedLogging::EProces
 
 	va_end(args);
 
-
 	CTime curTime = CTime::GetCurrentTime();
 	CString strLogTime = GetFormattedTime(curTime);
 	SLogData sData;
@@ -756,12 +744,7 @@ void CStandardizedLoggerImpl::WriteProcessLog(const StandardizedLogging::EProces
 	sData.ePreTag = ePreTag;
 
 	m_mapLogData[sData.strThreadName].push_back(sData);
-
-	//PushLogItemToQueue(pLogItem);
-	//PushListLog(curTime, strThreadName);
 }
-
-
 
 void CStandardizedLoggerImpl::WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const EPreTag ePreTag, const EPostTag ePostTag, const CString strContent, ...)
 {
@@ -795,11 +778,7 @@ void CStandardizedLoggerImpl::WriteProcessLog(const StandardizedLogging::EProces
 
 	m_mapLogData[sData.strThreadName].push_back(sData);
 
-	//PushLogItemToQueue(pLogItem);
-	//PushListLog(curTime, strThreadName);
 }
-
-
 
 void CStandardizedLoggerImpl::WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const StandardizedLogging::EMacro eData)
 {
@@ -815,6 +794,4 @@ void CStandardizedLoggerImpl::WriteProcessLog(const StandardizedLogging::EProces
 
 	m_mapLogData[sData.strThreadName].push_back(sData);
 
-	//PushLogItemToQueue(pLogItem);
-	//PushListLog(curTime, strThreadName);
 }
