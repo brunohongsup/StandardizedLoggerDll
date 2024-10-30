@@ -1,16 +1,48 @@
 #include "pch.h"
 #include "StandardizedLoggerImpl.h"
 
+CCriticalSection CStandardizedLoggerImpl::s_lockSection;
+
+std::shared_ptr<CStandardizedLoggerImpl> CStandardizedLoggerImpl::s_instance = nullptr;
+
 CString GetFormattedTime(const CTime& curTime);
 
-void CStandardizedLoggerImpl::WriteMainLoopStart(const int nProductCount, const int nMainThreadIdx)
+std::shared_ptr<CStandardizedLoggerImpl> CStandardizedLoggerImpl::GetInstance()
 {
-	WriteProcessLog(nProductCount, _T("Null"), EProcessLogThread::MainThread, nMainThreadIdx, m_strVisionSystemMinorName, EPreTag::None, EPostTag::MainLoopStart);
+	if(s_instance == nullptr)
+	{
+		CSingleLock lock(&s_lockSection, TRUE);
+
+		if(nullptr == s_instance)
+		{
+			s_instance = std::shared_ptr<CStandardizedLoggerImpl>(new CStandardizedLoggerImpl());
+			s_instance->init();
+		}
+	}
+
+	return s_instance;
 }
 
-void CStandardizedLoggerImpl::WriteMainLoopEnd(const int nProductCount, const CString& strProductId, const int nMainThreadIdx)
+void CStandardizedLoggerImpl::WriteMainLoopStart(const int nMainThreadIdx)
 {
-	WriteProcessLog(nProductCount, strProductId, EProcessLogThread::MainThread, nMainThreadIdx, m_strVisionSystemMinorName, EPreTag::None, EPostTag::MainLoopEnd);
+	CString strMainLoopStart;
+	strMainLoopStart.AppendFormat(m_strVisionSystemMinorName);
+	strMainLoopStart.AppendFormat(_T(",[MLS]"));
+	{
+		CSingleLock lock(&m_csTable, TRUE);
+		auto it = m_tableProducts.find(NULL_ID);
+		it->second = ++m_nProductIndex;
+	}
+	
+	WriteProcessLog(EProcessLogThread::MainThread, nMainThreadIdx, NULL_ID, strMainLoopStart);
+}
+
+void CStandardizedLoggerImpl::WriteMainLoopEnd(const CString& strProductId, const int nMainThreadIdx)
+{
+	CString strMainLoopEnd;
+	strMainLoopEnd.AppendFormat(m_strVisionSystemMinorName);
+	strMainLoopEnd.AppendFormat(_T(",[MLE]"));
+	WriteProcessLog(EProcessLogThread::MainThread, nMainThreadIdx, strProductId, strMainLoopEnd);
 }
 
 UINT CStandardizedLoggerImpl::SaveLogThreading(LPVOID pParam)
@@ -18,43 +50,41 @@ UINT CStandardizedLoggerImpl::SaveLogThreading(LPVOID pParam)
 	auto* pInstance = (CStandardizedLoggerImpl*)pParam;
 	while(pInstance->m_bThreadRunning)
 	{
-		for(auto& pair : pInstance->m_mapLogData)
+		auto& queueLogData = pInstance->m_queLogData;
+		bool bIsQueueEmpty = false;
 		{
-			bool bReadID = false;
-			
-			for(int i = 0; i < pair.second.size(); i++)
-			{
-				if((pair.second[i].strID == _T("") || pair.second[i].strID == _T("NULL")) && !bReadID)
-				{
-					pair.second[i].strID = _T("NULL");
-					continue;
-				}
-
-				if(!bReadID)
-				{
-					CString strBefore = pInstance->m_mapBeforeID[pair.first];
-					if(strBefore != pair.second[i].strID)
-					{
-						pInstance->m_nProductIndex++;
-						pInstance->m_mapBeforeID[pair.first] = pair.second[i].strID;
-						pInstance->m_mapProductIndex[pair.first] = pInstance->m_nProductIndex;
-					}
-					i = 0;
-					bReadID = true;
-				}
-
-				pInstance->SaveLogData(pair.second[i].strID, pInstance->m_mapProductIndex[pair.first], pair.second[i]);
-			}
-
-			if(bReadID)
-				pInstance->m_mapLogData[pair.first].clear();
+			CSingleLock lock(&pInstance->m_csLogDeque, TRUE);
+			bIsQueueEmpty = queueLogData.empty();
 		}
 
-		Sleep(10);
+		if(bIsQueueEmpty)
+		{
+			Sleep(2000);
+			continue;
+		}
+
+		CString strNextID;
+		CString strID;
+		std::shared_ptr<ILogData> pLogData{};
+		{
+			CSingleLock lock(&pInstance->m_csLogDeque, TRUE);
+			pLogData = queueLogData.front();
+			queueLogData.pop();
+		}
+		
+		bool bSaveResult = false;
+		do 
+		{
+			bSaveResult = pLogData->SaveToFile();
+			if(!bSaveResult)
+				Sleep(1);
+
+		} while (!bSaveResult);
+
+		Sleep(3);
 	}
 
 	SetEvent(pInstance->m_hThreadTerminatedEvent);
-
 	return 0;
 }
 
@@ -76,6 +106,16 @@ bool CStandardizedLoggerImpl::init()
 
 	do
 	{
+		auto findNullId = m_tableProducts.find(NULL_ID);
+		if(findNullId != std::end(m_tableProducts))
+		{
+			_ASSERT(false);
+			AfxMessageBox(_T("[StandardizedLog] Inititlization Failed - NULL_ID Index is not set to 1"));
+			return false;
+		}
+
+		m_tableProducts.emplace(NULL_ID, 0);
+
 		const int nEnumIdx = 0;
 		TCHAR path[MAX_PATH];
 		m_strExeFileName.Empty();
@@ -128,6 +168,7 @@ bool CStandardizedLoggerImpl::init()
 
 		}
 		while(false);
+
 		StartSaveStandardLogThread();
 	}
 	while(false);
@@ -137,16 +178,14 @@ bool CStandardizedLoggerImpl::init()
 
 void CStandardizedLoggerImpl::PushLogItemToQueue(const std::shared_ptr<SLogItem>& pItem)
 {
-	CSingleLock lock(&m_csQueue);
-	lock.Lock();
+	CSingleLock lock(&m_csQueue, TRUE);
 	pItem->strLogContent.AppendFormat(_T("\n"));
 	m_queueLogItem.push(pItem);
 }
 
 bool CStandardizedLoggerImpl::PopLogItem(std::shared_ptr<SLogItem>& pItem)
 {
-	CSingleLock lock(&m_csQueue);
-	lock.Lock();
+	CSingleLock lock(&m_csQueue, TRUE);
 	if(m_queueLogItem.empty())
 	{
 		pItem = nullptr;
@@ -171,6 +210,24 @@ void CStandardizedLoggerImpl::PushListLog(const CTime & curTime, const CString &
 	strListLogPath.AppendFormat(GetLogFilePath(curTime, ESystemName::Minor, ELogFileType::ThreadList));
 	strListLogContent.AppendFormat(strThreadName);
 	PushLogItemToQueue(pListLogItem);
+}
+
+void CStandardizedLoggerImpl::PushLogData(const std::shared_ptr<ILogData>& pLogData)
+{
+	CSingleLock lock(&m_csLogDeque, TRUE);
+	auto& queue = m_queLogData;
+	queue.push(pLogData);
+}
+
+int CStandardizedLoggerImpl::GetProductIdxFromTable(const CString & strProductId)
+{	
+	CSingleLock lock(&m_csTable, TRUE);
+	auto findProduct = m_tableProducts.find(strProductId);
+	if(findProduct == std::end(m_tableProducts))
+		return -1;		
+
+	else
+		return findProduct->second;
 }
 
 void CStandardizedLoggerImpl::WriteProcessLog(const int nProductCount, const CString & strProductId, const EProcessLogThread eLogThread, const int nThreadIdx, const CString & strLogContent, const EPreTag ePreTag, const EPostTag ePostTag)
@@ -309,10 +366,11 @@ CString CStandardizedLoggerImpl::GetLogFilePath(const CTime& curTime, const ESys
 	const int nMonth = curTime.GetMonth();
 	const int nDay = curTime.GetDay();
 	const int nHour = curTime.GetHour();
-	strLogFilePath.AppendFormat(_T("LOG_SW\\%04d%02d%02d\\%02d\\"),
+	strLogFilePath.AppendFormat(_T("LOG_SW\\%04d%02d%02d%02d\\%02d\\"),
 								nYear,
 								nMonth,
 								nDay,
+								nHour,
 								nHour);
 
 	const CString strSystemName = GetSystemName(eName);
@@ -337,12 +395,11 @@ void CStandardizedLoggerImpl::Clear()
 	m_bThreadRunning = false;
 	const DWORD dwThreeSecondsInMil = 3000;
 	WaitForSingleObject(m_hThreadTerminatedEvent, dwThreeSecondsInMil);
-	CSingleLock lock(&m_csQueue);
-	lock.Lock();
-	while(!m_queueLogItem.empty())
+	CSingleLock lock(&m_csQueue, TRUE);
+	while(!m_queLogData.empty())
 	{
-		auto item = m_queueLogItem.front();
-		bool bRet = item->Save();
+		auto item = m_queLogData.front();
+		bool bRet = item->SaveToFile();
 		if(bRet)
 			m_queueLogItem.pop();
 
@@ -350,9 +407,11 @@ void CStandardizedLoggerImpl::Clear()
 }
 
 CStandardizedLoggerImpl::CStandardizedLoggerImpl()
-	: CStandardizedLoggerPrivate()
-	, m_strVisionSystemMinorName(CString { _T("MinorNameNotSet") })
+	: m_strVisionSystemMinorName(CString { _T("MinorNameNotSet") })
 	, m_strVisionSystemMajorName(CString { _T("MajorNameNotSet") })
+	, m_bCanWriteToDDrive(false)
+	, m_bIsProductEverRegistered(false)
+	, m_nProductIndex(0)
 {
 
 }
@@ -431,7 +490,7 @@ bool CStandardizedLoggerImpl::SLogItem::Save()
 		{
 			DWORD dwError = GetLastError();
 			CString strMsg;
-			strMsg.Format(_T("[표준화 로그] 경로 생성에 실패하였습니다. 에러 코드 %d"), dwError);
+			strMsg.Format(_T("[S"), dwError);
 			return false;
 
 		}
@@ -449,8 +508,7 @@ bool CStandardizedLoggerImpl::SLogItem::Save()
 	{
 		DWORD dwError = GetLastError();
 		CString strMessage;
-		strMessage.Format(_T("[표준화 로그] 파일 생성에 실패 했습니다. 에러 코드 %d"), dwError);
-		AfxMessageBox(strMessage, MB_ICONWARNING);
+		strMessage.Format(_T("[StandardizedLog] Failed To Open File. Error Code : %d"), dwError);
 
 		return false;
 	}
@@ -486,8 +544,7 @@ bool CStandardizedLoggerImpl::SListFileLogItem::Save()
 		{
 			DWORD dwError = GetLastError();
 			CString strMsg;
-			strMsg.Format(_T("[표준화 로그] 리스트 파일 저장 - 파일 열기에 실패하였습니다. 에러 코드 %d"), dwError);
-			AfxMessageBox(strMsg, MB_ICONWARNING);
+			strMsg.Format(_T("[StandardizedLog] Failed To Read File. Error Code : %d"), dwError);
 
 			return false;
 		}
@@ -500,8 +557,8 @@ bool CStandardizedLoggerImpl::SListFileLogItem::Save()
 		{
 			DWORD dwError = GetLastError();
 			CString strMsg;
-			strMsg.Format(_T("[표준화 로그] 리스트 파일 읽기 - 파일 읽기에 실패하였습니다. 에러 코드 %d"), dwError);
-			AfxMessageBox(strMsg, MB_ICONWARNING);
+			strMsg.Format(_T("[StandardizedLog] Failed To Read File. Error Code : %d"), dwError);
+			
 			return false;
 		}
 
@@ -602,15 +659,14 @@ CString GetFormattedTime(const CTime& curTime)
 	return formattedTime;
 }
 
-void CStandardizedLoggerImpl::SaveLogData(CString strID, int nProductIndex, SLogData sData)
+void CStandardizedLoggerImpl::SaveLogData(int nProductIndex, SLogData& sData)
 {
-	auto& strFilePath = sData.strFile;
+	auto& strFilePath = sData.strFilePath;
 
-	CString strLogData, strDirPath;
+	CString strLogData;
 	strLogData.AppendFormat(_T("L[%s],"), sData.strTime);
 	strLogData.AppendFormat(_T("%010d,"), nProductIndex);
-	strLogData.AppendFormat(_T("%s,"), strID);
-
+	strLogData.AppendFormat(_T("%s,"), sData.strID);
 	strLogData.AppendFormat(_T("[%s],"), sData.strThreadName);
 
  	if(sData.ePreTag != StandardizedLogging::EPreTag::None)
@@ -628,9 +684,10 @@ void CStandardizedLoggerImpl::SaveLogData(CString strID, int nProductIndex, SLog
  	}
 
 	CTime curTime = CTime::GetCurrentTime();
+	CString strDirPath;
 	strDirPath.AppendFormat(GetLogFilePath(curTime, ESystemName::Minor, ELogFileType::ProcessLog));
-
 	strFilePath = strDirPath;
+
 	LPTSTR buffer = strDirPath.GetBuffer();
 	PathRemoveFileSpec(buffer);
 	strDirPath.ReleaseBuffer();
@@ -641,7 +698,7 @@ void CStandardizedLoggerImpl::SaveLogData(CString strID, int nProductIndex, SLog
 		{
 			DWORD dwError = GetLastError();
 			CString strMsg;
-			strMsg.Format(_T("[StandardizedLogging] Failed To Make Path. Error Code %d"), dwError);
+			strMsg.Format(_T("[StandardizedLog] Failed To Make Directory Path. Error Code : %d"), dwError);
 			return;
 		}
 	}
@@ -657,17 +714,16 @@ void CStandardizedLoggerImpl::SaveLogData(CString strID, int nProductIndex, SLog
 	if(hFile == INVALID_HANDLE_VALUE)
 	{
 		DWORD dwError = GetLastError();
-		CString strMessage;
-		strMessage.Format(_T("[StandardizedLogging] Failed To Make Path. Error Code %d"), dwError);
-
+		CString strMsg;
+		strMsg.Format(_T("[StandardizedLog] Failed To Create File. Error Code : %d"), dwError);
 		return;
 	}
 
 	SetFilePointer(hFile, 0, NULL, FILE_END);
 	DWORD dwByesWritten {};
-	strLogData += _T("\n");
+	strLogData.AppendFormat(_T("\n"));
 	buffer = strLogData.GetBuffer();
-	int nUtf8Len = WideCharToMultiByte(CP_UTF8, 0, buffer, -1, NULL, 0, NULL, NULL);
+	const int nUtf8Len = WideCharToMultiByte(CP_UTF8, 0, buffer, -1, NULL, 0, NULL, NULL);
 	std::string strWrite;
 	strWrite.reserve(nUtf8Len);
 	const DWORD dwBytesToWrite = nUtf8Len - 1;
@@ -683,7 +739,28 @@ void CStandardizedLoggerImpl::SaveLogData(CString strID, int nProductIndex, SLog
 		return;
 }
 
-void CStandardizedLoggerImpl::WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const CString strContent, ...)
+void CStandardizedLoggerImpl::WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, CString strContent, ...)
+{
+	va_list args;
+	va_start(args, strContent);
+	CString strResult;
+
+	strResult.AppendFormatV(strContent, args);
+	va_end(args);
+
+	CTime curTime = CTime::GetCurrentTime();
+	CString strLogTime = GetFormattedTime(curTime);
+	auto pLogData = std::make_shared<SLogData>();
+	pLogData->strThreadName.Format(_T("%s-%d"), StandardizedLogging::GetProcessLogThreadName(eLogThread), nThreadIdx);
+	pLogData->strTime = strLogTime;
+	pLogData->strID = strProductID;
+	pLogData->strLogData = strResult;
+	pLogData->nIndex = GetProductIdxFromTable(strProductID);
+
+	PushLogData(pLogData);
+}
+
+void CStandardizedLoggerImpl::WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const EPreTag ePreTag, CString strContent, ...)
 {
 	CString strResult;
 	va_list args;
@@ -703,95 +780,173 @@ void CStandardizedLoggerImpl::WriteProcessLog(const StandardizedLogging::EProces
 
 	CTime curTime = CTime::GetCurrentTime();
 	CString strLogTime = GetFormattedTime(curTime);
-	SLogData sData;
+	auto pLogData = std::make_shared<SLogData>();
+	pLogData->strThreadName.Format(_T("%s-%d"), StandardizedLogging::GetProcessLogThreadName(eLogThread), nThreadIdx);
+	pLogData->strTime = strLogTime;
+	pLogData->strID = strProductID;
+	pLogData->strLogData = strResult;
+	pLogData->ePreTag = ePreTag;
+	pLogData->nIndex = GetProductIdxFromTable(strProductID);
 
-	sData.strThreadName.Format(_T("%s-%d"), StandardizedLogging::GetProcessLogThreadName(eLogThread), nThreadIdx);
-
-	sData.strTime = strLogTime;
-	sData.strID = strProductID;
-	sData.strLogData = strResult;
-
-	m_mapLogData[sData.strThreadName].push_back(sData);
-
+	PushLogData(pLogData);
 }
 
-void CStandardizedLoggerImpl::WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const EPreTag ePreTag, const CString strContent, ...)
+void CStandardizedLoggerImpl::WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const EPreTag ePreTag, const EPostTag ePostTag, CString strContent, ...)
 {
-	CString strResult;
 	va_list args;
 	va_start(args, strContent);
-	try
-	{
-		strResult.FormatV(strContent, args);
-	}
-	catch(...)
-	{
-		va_end(args);
-		return;
-	}
+	CString strResult;
 
+	strResult.FormatV(strContent, args);
 	va_end(args);
 
 	CTime curTime = CTime::GetCurrentTime();
 	CString strLogTime = GetFormattedTime(curTime);
-	SLogData sData;
+	auto pLogData = std::make_shared<SLogData>();
+	pLogData->strThreadName.Format(_T("%s-%d"), StandardizedLogging::GetProcessLogThreadName(eLogThread), nThreadIdx);
+	pLogData->strTime = strLogTime;
+	pLogData->strID = strProductID;
+	pLogData->strLogData = strResult;
+	pLogData->ePreTag = ePreTag;
+	pLogData->ePostTag = ePostTag;
+	pLogData->nIndex = GetProductIdxFromTable(strProductID);
 
-	sData.strThreadName.Format(_T("%s-%d"), StandardizedLogging::GetProcessLogThreadName(eLogThread), nThreadIdx);
-
-	sData.strTime = strLogTime;
-	sData.strID = strProductID;
-	sData.strLogData = strResult;
-	sData.ePreTag = ePreTag;
-
-	m_mapLogData[sData.strThreadName].push_back(sData);
+	PushLogData(pLogData);
 }
 
-void CStandardizedLoggerImpl::WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const EPreTag ePreTag, const EPostTag ePostTag, const CString strContent, ...)
+void CStandardizedLoggerImpl::RegisterProductId(const CString& strID)
 {
-	CString strResult;
-	va_list args;
-	va_start(args, strContent);
-	try
-	{
-		strResult.FormatV(strContent, args);
-	}
-	catch(...)
-	{
-		va_end(args);
+	if(strID.GetLength() < 1)
 		return;
-	}
 
-	va_end(args);
+	if(!m_bIsProductEverRegistered)
+		m_bIsProductEverRegistered = true;
 
+	CSingleLock lock(&m_csTable, TRUE);
+	auto findProduct = m_tableProducts.find(strID);
+	if(findProduct == std::end(m_tableProducts))
+		m_tableProducts.emplace(strID, m_nProductIndex);
 
-	CTime curTime = CTime::GetCurrentTime();
-	CString strLogTime = GetFormattedTime(curTime);
-	SLogData sData;
+	if(m_tableProducts.size() > MAXIMUM_TABLE_SIZE)
+	{
+		std::vector<int> vctValues{};
+		vctValues.reserve(MAXIMUM_TABLE_SIZE + 10);
+		for(auto it = m_tableProducts.begin(); it != m_tableProducts.end(); it++)
+			vctValues.push_back(it->second);
+		
+		std::sort(std::begin(vctValues), std::end(vctValues));
+		std::vector<int> vctRemoveTarget(std::begin(vctValues), std::begin(vctValues) + 500);
+		
+		for(auto it = m_tableProducts.begin(); it != m_tableProducts.end();)
+		{
+			auto findComp = [it](const int nValue)
+			{
+				const int nCompValue = it->second;
+				const auto& strKey = it->first;
+				if(nCompValue == nValue)
+					return true;
 
-	sData.strThreadName.Format(_T("%s-%d"), StandardizedLogging::GetProcessLogThreadName(eLogThread), nThreadIdx);
+				else
+					return false;
+			};
 
-	sData.strTime = strLogTime;
-	sData.strID = strProductID;
-	sData.strLogData = strResult;
-	sData.ePreTag = ePreTag;
-	sData.ePostTag = ePostTag;
-
-	m_mapLogData[sData.strThreadName].push_back(sData);
-
+			auto findCompValue = std::find_if(std::begin(vctRemoveTarget), std::end(vctRemoveTarget), findComp);
+			if(findCompValue != std::end(vctRemoveTarget))
+				it = m_tableProducts.erase(it);
+			
+			else
+				++it;
+		}
+	}	
 }
 
-void CStandardizedLoggerImpl::WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const StandardizedLogging::EMacro eData)
+bool CStandardizedLoggerImpl::SLogData::SaveToFile()
+{
+	auto& strFilePath = this->strFilePath;
+	auto& strLogData = this->strLogData;
+	CString strAddLog;
+	strAddLog.AppendFormat(_T("L[%s],"), strTime);
+	strAddLog.AppendFormat(_T("%010d,"), this->nIndex);
+	strAddLog.AppendFormat(_T("%s,"), strID);
+	strAddLog.AppendFormat(_T("[%s],"), strThreadName);
+
+	if(ePreTag != StandardizedLogging::EPreTag::None)
+	{
+		CString strPreTag = GetPreTagString(ePreTag);
+		strAddLog.AppendFormat(_T("%s,"), strPreTag);
+	}
+
+	strAddLog.AppendFormat(_T("%s"), strLogData);
+
+	if(ePostTag != StandardizedLogging::EPostTag::None)
+	{
+		CString strPostTag = GetPostTagString(ePostTag);
+		strAddLog.AppendFormat(_T(",%s"), strPostTag);
+	}
+
+	CTime curTime = CTime::GetCurrentTime();
+	auto pLogger = CStandardizedLoggerImpl::GetInstance();
+	strFilePath.AppendFormat(pLogger->GetLogFilePath(curTime, ESystemName::Minor, ELogFileType::ProcessLog));
+	
+	strLogData.Empty();
+	strLogData.AppendFormat(strAddLog);
+	return ILogData::WriteToFile();
+}
+
+bool CStandardizedLoggerImpl::ILogData::WriteToFile()
 {
 	CTime curTime = CTime::GetCurrentTime();
-	CString strLogTime = GetFormattedTime(curTime);
-	SLogData sData;
+	CString strDirPath;
+	auto pInstance = CStandardizedLoggerImpl::GetInstance();
+	strDirPath = strFilePath;
 
-	sData.strThreadName.Format(_T("%s-%d"), StandardizedLogging::GetProcessLogThreadName(eLogThread), nThreadIdx);
+	LPTSTR buffer = strDirPath.GetBuffer();
+	PathRemoveFileSpec(buffer);
+	strDirPath.ReleaseBuffer();
+	if(!PathFileExists(buffer))
+	{
+		BOOL ret = CreateDirectoryRecursive(buffer);
+		if(!ret)
+		{
+			DWORD dwError = GetLastError();
+			CString strMsg;
+			strMsg.Format(_T("[StandardizedLog] Failed To Make Directory Path. Error Code : %d"), dwError);
+			return false;
+		}
+	}
 
-	sData.strTime = strLogTime;
-	sData.strID = strProductID;
-	sData.strLogData.Format(_T("%s"), StandardizedLogging::GetMacroString(eData));
+	HANDLE hFile = CreateFile(strFilePath,                // name of the write
+							  FILE_APPEND_DATA,          // open for writings
+							  0,                      // do not share
+							  NULL,                   // default security
+							  OPEN_ALWAYS,             // create new file only
+							  FILE_ATTRIBUTE_NORMAL,  // normal file
+							  NULL);                  // no attr. template
 
-	m_mapLogData[sData.strThreadName].push_back(sData);
+	if(hFile == INVALID_HANDLE_VALUE)
+	{
+		DWORD dwError = GetLastError();
+		CString strMsg;
+		strMsg.Format(_T("[StandardizedLog] Failed To Create File. Error Code : %d"), dwError);
+		return false;
+	}
 
+	SetFilePointer(hFile, 0, NULL, FILE_END);
+	DWORD dwByesWritten {};
+	strLogData.AppendFormat(_T("\n"));
+	buffer = strLogData.GetBuffer();
+	const int nUtf8Len = WideCharToMultiByte(CP_UTF8, 0, buffer, -1, NULL, 0, NULL, NULL);
+	std::string strWrite;
+	strWrite.reserve(nUtf8Len);
+	const DWORD dwBytesToWrite = nUtf8Len - 1;
+	WideCharToMultiByte(CP_UTF8, 0, buffer, -1, &strWrite[0], nUtf8Len, NULL, NULL);
+	BOOL bWriteResult = WriteFile(hFile, &strWrite[0], dwBytesToWrite, &dwByesWritten, NULL);
+	CloseHandle(hFile);
+	strLogData.ReleaseBuffer();
+
+	if(TRUE == bWriteResult && dwBytesToWrite == dwByesWritten)
+		return true;
+
+	else
+		return false;
 }
