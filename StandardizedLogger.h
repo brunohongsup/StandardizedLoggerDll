@@ -345,10 +345,10 @@ namespace StandardizedLogging
 	}
 }
 
-class CStandardizedLoggerImpl
+class CStandardizedLogger
 {
 public:
-	static std::shared_ptr<CStandardizedLoggerImpl> GetInstance();
+	static std::shared_ptr<CStandardizedLogger> GetInstance();
 
 	typedef StandardizedLogging::EPostTag EPostTag;
 
@@ -409,27 +409,30 @@ public:
 	struct ILogData
 	{
 		CString strID = _T("");
+
 		CString strFilePath = _T("");
+
 		CString strTime = _T("");
+
 		CString strLogData;
+
 		int nIndex = 0;
 
-		virtual bool SaveToFile() = 0;
+		bool SaveToFile();
+		
+		virtual void SetLogDataAndPath() = 0;
 
 		bool WriteToFile();
-
 	};
 
 	struct SLogData : ILogData
 	{
 
 		CString strThreadName = _T("");
-
-
 		EPreTag ePreTag = EPreTag::None;
 		EPostTag ePostTag = EPostTag::None;
 
-		bool SaveToFile() override;
+		void SetLogDataAndPath() override;
 
 		bool operator <(const SLogData &sValue) const
 		{
@@ -487,27 +490,25 @@ public:
 
 private:
 
-	CStandardizedLoggerImpl();
+	CStandardizedLogger();
 
 	bool init();
 
-	void StartSaveStandardLogThread();
+	void startSaveStandardLogThread();
 
-	void StopSaveStandardLogThread();
+	void stopSaveStandardLogThread();
 
-	void SaveLogData(int nProductIndex, SLogData& sData);
+	static UINT saveLogThreading(LPVOID pParam);
 
-	static UINT SaveLogThreading(LPVOID pParam);
+	CString getLogFilePath(const CTime& time, const ESystemName eName, const ELogFileType eLogType) const;
 
-	CString GetLogFilePath(const CTime& time, const ESystemName eName, const ELogFileType eLogType) const;
+	CString getSystemName(const ESystemName eSystem) const;
 
-	CString GetSystemName(const ESystemName eSystem) const;
+	void pushListLog(const CTime& curTime, const CString& strThreadName);
 
-	void PushListLog(const CTime& curTime, const CString& strThreadName);
+	void pushLogData(const std::shared_ptr<ILogData>& pLogData);
 
-	void PushLogData(const std::shared_ptr<ILogData>& pLogData);
-
-	int GetProductIdxFromTable(const CString& strProductId);
+	int getProductIdxFromTable(const CString& strProductId);
 
 	CCriticalSection m_csLogDeque;
 
@@ -543,7 +544,7 @@ private:
 
 	constexpr static size_t MAXIMUM_TABLE_SIZE = 1000;
 
-	static std::shared_ptr<CStandardizedLoggerImpl> s_instance;
+	static std::shared_ptr<CStandardizedLogger> s_instance;
 
 	static CCriticalSection s_lockSection;
 };
