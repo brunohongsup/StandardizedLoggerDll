@@ -414,10 +414,17 @@ void CStandardizedLoggerImpl::Clear()
 	while(!m_queLogData.empty())
 	{
 		auto item = m_queLogData.front();
-		bool bRet = item->SaveToFile();
-		if(bRet)
-			m_queueLogItem.pop();
+		item->SaveToFile();
+		m_queueLogItem.pop();
+	}
 
+	if(m_hThreadTerminatedEvent != INVALID_HANDLE_VALUE)
+	{
+		BOOL bRet = CloseHandle(m_hThreadTerminatedEvent);
+		if(!bRet)
+		{
+			_ASSERT(false);
+		}
 	}
 }
 
