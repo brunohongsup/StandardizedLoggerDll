@@ -161,7 +161,6 @@
     <ClInclude Include="Project1.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="StandardizedLogger.h" />
-    <ClInclude Include="StandardizedLoggerImpl.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
@@ -173,7 +172,6 @@
     </ClCompile>
     <ClCompile Include="Project1.cpp" />
     <ClCompile Include="StandardizedLogger.cpp" />
-    <ClCompile Include="StandardizedLoggerImpl.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="Project1.rc" />
