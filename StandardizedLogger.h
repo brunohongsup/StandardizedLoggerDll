@@ -398,17 +398,15 @@ public:
 		SaveProcess,
 	};
 
-	struct ILogData
+	struct SLogData
 	{
-		CString strID = _T("");
+		int nIndex = 0;
 
 		CString strFilePath = _T("");
 
 		CString strTime = _T("");
 
 		CString strLogData;
-
-		int nIndex = 0;
 
 		virtual bool SaveToFile();
 		
@@ -417,8 +415,25 @@ public:
 		bool WriteToFile();
 	};
 
-	struct SLogData : ILogData
+	struct SResultLogData : SLogData
 	{
+		void SetLogDataAndPath() override {}
+	};
+
+	struct SAlarmLogData : SLogData
+	{
+		void SetLogDataAndPath() override {}
+	};
+
+	struct SSystemLogData : SLogData
+	{
+		void SetLogDataAndPath() override {}
+	};
+
+	struct SProcessLogData : SLogData
+	{
+		CString strID = _T("");
+
 		CString strThreadName = _T("");
 
 		EPreTag ePreTag = EPreTag::None;
@@ -440,8 +455,13 @@ public:
 		}
 	};
 
-	struct SListLogData : ILogData
+	struct SListLogData : SLogData
 	{
+		SListLogData()
+		{
+			nIndex = -1;
+		}
+
 		void SetLogDataAndPath() override;
 
 		bool SaveToFile() override;
@@ -449,11 +469,11 @@ public:
 
 public:
 
-	void WriteAlarmLog(const int nProductCount, const CString & strProductId, const CString & strLogContent);
+	void WriteAlarmLog(const CString& strProductId, const CString & strLogContent);
 
-	void WriteResultLog(const int nProductCount, const CString & strModuleId, const CString & strCellId, const StandardizedLogging::EResultValue eResultValue, const CString & strImgPath, const std::vector<CString>& vctLogs);
+	void WriteResultLog(const CString & strModuleId, const CString& strCellId, const StandardizedLogging::EResultValue eResultValue, const CString & strImgPath, const std::vector<CString>& vctLogs);
 
-	void WriteSystemLog(const int nProductCount, const CString & strProductId, const StandardizedLogging::ESystemLogThread eLogThread, const CString & strLogContent, const StandardizedLogging::EPreTag ePreTag, const StandardizedLogging::EPostTag ePostTag);
+	void WriteSystemLog(const CString & strProductId, const StandardizedLogging::ESystemLogThread eLogThread, const CString & strLogContent, const StandardizedLogging::EPreTag ePreTag, const StandardizedLogging::EPostTag ePostTag);
 
 	void Clear();
 
@@ -497,7 +517,7 @@ private:
 
 	void pushListLog(const CTime& curTime, const CString& strThreadName);
 
-	void pushLogData(const std::shared_ptr<ILogData>& pLogData);
+	void pushLogData(const std::shared_ptr<SLogData>& pLogData);
 
 	int getProductIdxFromTable(const CString& strProductId);
 
@@ -505,7 +525,7 @@ private:
 
 	CCriticalSection m_csTable;
 
-	std::queue<std::shared_ptr<ILogData>> m_queLogData;
+	std::queue<std::shared_ptr<SLogData>> m_queLogData;
 
 	std::map<CString, int> m_tableProducts;
 
