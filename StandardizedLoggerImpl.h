@@ -31,27 +31,55 @@
 
 #define FUNCTION_END _T("[FE]")
 
-#define PLC_STEP_NUM_ON(t1) ([t1]()-> CString { CString str; str.Format(_T("Plc,Sig On Snb %d"), t1); return str; }())
+#define PLC_STEP_NUM_ON(t1) ([](const int nStepNum) { CString str; str.Format(_T("Plc,Sig On Snb %d"), nStepNum); return str; })(t1)
 
-#define VISION_STEP_NUM_CHECK(t1) ([t1]()-> CString { CString str; str.Format(_T("Chk Snb %d"), t1); return str; }())
+#define VISION_STEP_NUM_CHECK(t1) ([](const int nStepNum) { CString str; str.Format(_T("Chk Snb %d"), nStepNum); return str; })(t1)
 
-#define IMAGE_PROC(t1, t2) ([t1,t2]() -> CString { CString str; str.Format(_T("Proc Img %d-%d"), t1, t2); return str; }())
+#define IMAGE_PROC_DOUBLE(t1, t2) ([](const int nOp1, const int nOp2) { CString str; str.Format(_T("Proc Img %d-%d"), nOp1, nOp2); return str; })(t1, t2)
 
-#define CAM_GRAB(t1,t2) ([t1,t2]()-> CString { CString str; str.Format(_T("Cam,Grb %d-%d"), t1, t2); return str; }())
+#define IMAGE_PROC_SINGLE(t1) ([](const int nOp1) { CString str; str.Format(_T("Proc Img %d"), nOp1); return str; })(t1)
 
-#define SAVE_IMAGE(t1,t2,t3) ([t1,t2,t3]()-> CString { CString str; str.Format(_T("Sv Img %d-%d-%d"), t1, t2, t3); return str; }())
+#define IMAGE_PROC _T("Proc Img")
 
-#define SAVE_IMAGE_OVERLAY(t1, t2,t3) ([t1,t2,t3]()-> CString { CString str; str.Format(_T("Sv Img Ovly %d-%d-%d"), t1, t2, t3); return str; }())
+#define CAM_GRAB_DOUBLE(t1,t2) ([](const int nCam1, const int nCam2){ CString str; str.Format(_T("Cam,Grb %d-%d"), nCam1, nCam2); return str; })(t1,t2)
 
-#define SAVE_IMAGE_SPC(t1, t2,t3) ([t1,t2,t3]()-> CString { CString str; str.Format(_T("Sv Img Spc %d-%d-%d"), t1, t2, t3); return str; }())
+#define CAM_GRAB_SINGLE(t1) ([](const int nCam) { CString str; str.Format(_T("Cam,Grb-%d"), nCam); return str; })(t1)
 
-#define SAVE_DATA_INSP(t1) ([t1]()-> CString { CString str; str.Format(_T("Sv Data Insp-%d"), t1); return str; }())
+#define SAVE_IMAGE_TRIPLE(t1,t2,t3) ([](const int nOp1, const int nOp2, const int nOp3) { CString str; str.Format(_T("Sv Img %d-%d-%d"), nOp1, nOp2, nOp3); return str; })(t1, t2, t3)
 
-#define SAVE_DATA_SPC(t1) ([t1]()-> CString { CString str; str.Format(_T("Sv Data Spc-%d"), t1); return str; }())
+#define SAVE_IMAGE_DOUBLE(t1,t2) ([](const int nOp1, const int nOp2){ CString str; str.Format(_T("Sv Img %d-%d"), nOp1, nOp2); return str; })(t1, t2))
 
-#define SEND_RESULT_TRIPLE(t1, t2, t3) ([t1, t2, t3]()-> CString { CString str; str.Format(_T("Sd Ret %d-%d-%d"), t1, t2,t3); return str; }())
+#define SAVE_IMAGE_SINGLE(t1) ([](const int nOp1) { CString str; str.Format(_T("Sv Img %d"), nOp1); return str; })(t1)
 
-#define SEND_RESULT_DOUBLE(t1, t2) ([t1, t2]()-> CString { CString str; str.Format(_T("Sd Ret %d-%d"), t1, t2); return str; }())
+#define SAVE_IMAGE _T("Sv Img")
+
+#define SAVE_IMAGE_OVERLAY_TRIPLE(t1, t2,t3) ([](const int nOp1, const int nOp2, const int nOp3){ CString str; str.Format(_T("Sv Img Ovly %d-%d-%d"), nOp1, nOp2, nOp3); return str; })(t1, t2, t3)
+
+#define SAVE_IMAGE_OVERLAY_DOUBLE(t1,t2) ([](const int nOp1, const int nOp2) { CString str; str.Format(_T("Sv Img Ovly %d-%d"), nOp1, nOp2); return str; })(t1, t2)
+
+#define SAVE_IMAGE_OVERLAY_SINGLE(t1) ([](const int nOp1) { CString str; str.Format(_T("Sv Img Ovly-%d"), nOp1); return str; })(t1)
+
+#define SAVE_IMAGE_OVERLAY _T("Sv Img Ovly")
+
+#define SAVE_IMAGE_SPC_TRIPLE(t1, t2,t3) ([](const int nOp1, const int nOp2, const nOp3) { CString str; str.Format(_T("Sv Img Spc %d-%d-%d"), nOp1, nOp2, nOp3); return str; })(t1, t2, t3)
+
+#define SAVE_IMAGE_SPC_DOUBLE(t1, t2) ([](const int nOp1, const int nOp2) { CString str; str.Format(_T("Sv Img Spc %d-%d"), nOp1, nOp2); return str; })(t1, t2)
+
+#define SAVE_IMAGE_SPC_SINGLE(t1) ([](const int nOp1) { CString str; str.Format(_T("Sv Img Spc-%d"), nOp1); return str; })(t1)
+
+#define SAVE_DATA_INSP_SINGLE(t1) ([](const int nOp1) { CString str; str.Format(_T("Sv Data Insp-%d"), nOp1); return str; })(t1)
+
+#define SAVE_DATA_INSP _T("Sv Data Insp")
+
+#define SAVE_DATA_SPC_SINGLE(t1) ([](const int nOp1) { CString str; str.Format(_T("Sv Data Spc-%d"), nOp1); return str; })(t1)
+
+#define SEND_RESULT_TRIPLE(t1, t2, t3) ([](const int nOp1, const int nOp2, const int nOp3) { CString str; str.Format(_T("Sd Ret %d-%d-%d"), nOp1, nOp2, nOp3); return str; })(t1,t2,t3)
+
+#define SEND_RESULT_DOUBLE(t1, t2) ([](const int nOp1, const int nOp2) { CString str; str.Format(_T("Sd Ret %d-%d"), nOp1, nOp2); return str; })(t1, t2)
+
+#define SEND_RESULT_SINGLE(t1) ([](const int nOp1) { CString str; str.Format(_T("Sd Ret-%d"), nOp1); return str; })(t1)
+
+#define SEND_RESULT _T("Sd Ret")
 
 #define END_JUDGE_MENT _T("Ed Jdg Rt")
 
@@ -89,26 +117,25 @@
 
 #define NULL_ID _T("Null")
 
-#define VISION_COMPLETE_ON _T("Plc,Sig On Cmplt")
+#define VISION_COMPLETE_ON _T("Vp,Sig On Cmplt")
 
-#define VISION_COMPLETE_OFF _T("Plc,Sig Off Cmplt")
+#define VISION_COMPLETE_OFF _T("Vp,Sig Off Cmplt")
 
-#define MAIN_THREAD(t1) ([t1]()-> CString { CString str; str.Format(_T("MAIN-THREAD-%d"), t1); return str; }())
+#define MAIN_THREAD(t1) ([](const int t) { CString str; str.Format(_T("MAIN-THREAD-%d"), t); return str; })(t1)
 
-#define SAVE_IMAGE_THREAD(t1) ([t1]()-> CString { CString str; str.Format(_T("SAVE-IMAGE-%d"), t1); return str; }())
+#define SAVE_IMAGE_THREAD(t1) ([](const int t) { CString str; str.Format(_T("SAVE-IMAGE-%d"), t); return str; })(t1)
 
-#define SAVE_DATA_THREAD(t1) ([t1]()-> CString { CString str; str.Format(_T("SAVE-DATA-%d"), t1); return str; }())
+#define SAVE_DATA_THREAD(t1) ([](const int t) { CString str; str.Format(_T("SAVE-DATA-%d"), t); return str; })(t1)
 
-#define IMAGE_PROCESS_THREAD(t1) ([t1]()-> CString { CString str; str.Format(_T("IMAGE-PROCESS-%d"), t1); return str; }())
+#define IMAGE_PROCESS_THREAD(t1) ([](const int t) { CString str; str.Format(_T("IMAGE-PROCESS-%d"), t); return str; })(t1)
 
-#define INSPECT_THREAD(t1) ([t1]()-> CString { CString str; str.Format(_T("INSPECT-%d"), t1); return str; }())
+#define INSPECT_THREAD(t1) ([](const int t) { CString str; str.Format(_T("INSPECT-%d"), t); return str; })(t1)
 
-#define CAMERA_THREAD(t1) ([t1]()-> CString { CString str; str.Format(_T("CAM-THREAD-%d"), t1); return str; }())
+#define CAMERA_THREAD(t1) ([](const int t) { CString str; str.Format(_T("CAM-THREAD-%d"), t); return str; })(t1)
 
-#define _3DCAMERA_THREAD(t1) ([t1]()-> CString { CString str; str.Format(_T("3DCAM-THREAD-%d"), t1); return str; }())
+#define _3DCAMERA_THREAD(t1) ([](const int t) { CString str; str.Format(_T("3DCAM-THREAD-%d"), t); return str; })(t1)
 
-#define SAVE_ETC_THREAD ([]()-> CString { CString str; str.Format(_T("SAVE-ETC")); return str; }())
-
+#define SAVE_ETC_THREAD _T("SAVE-ETC")
 
 namespace StandardizedLogging
 {
