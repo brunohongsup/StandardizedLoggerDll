@@ -103,7 +103,6 @@ void CStandardizedLoggerImpl::StopSaveStandardLogThread()
 bool CStandardizedLoggerImpl::init()
 {
 	bool bRet = true;
-
 	do
 	{
 		auto findNullId = m_tableProducts.find(NULL_ID);
@@ -136,7 +135,7 @@ bool CStandardizedLoggerImpl::init()
 			if(bDdriveExist)
 			{
 				CString strTestFilePath;
-				strTestFilePath.AppendFormat(_T("%c:\\Test.txt"), cDDrive);
+				strTestFilePath.AppendFormat(_T("D:\\Test.txt"));
 				HANDLE hDrive = CreateFile(
 					strTestFilePath,
 					GENERIC_WRITE,
@@ -161,9 +160,25 @@ bool CStandardizedLoggerImpl::init()
 				if(bRet && dwDataSize == dwBytesWritten)
 					m_bCanWriteToDDrive = true;
 
-				bRet = CloseHandle(hDrive);
-				bRet = DeleteFile(strTestFilePath);
-				BOOL bCreateResult = CreateDirectory(_T("D:\\LOG_SW"), NULL);
+				bRet &= CloseHandle(hDrive);
+				bRet &= DeleteFile(strTestFilePath);
+				const CString strLogSwDirPath = _T("D:\\LOG_SW");
+				if(!PathFileExists(strLogSwDirPath))
+				{
+					bRet &= CreateDirectory(_T("D:\\LOG_SW"), NULL);
+					if(!bRet)
+					{
+						DWORD dwError = GetLastError();
+						CString strError;
+						strError.Format(_T("[Standardized Logging] Failed to Create Directory D:\\LOG_SW\\  - Error Code : %d"), dwError);
+						CLogManager::Write(0, strError);
+					}
+
+					if(!bRet)
+						return false;
+
+				}
+				
 			}
 
 		}
