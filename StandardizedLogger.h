@@ -398,14 +398,6 @@ public:
 		SaveProcess,
 	};
 
-	struct SLogItem
-	{
-		CString strFilePath;
-		CString strLogContent;
-
-		virtual bool Save();
-	};
-
 	struct ILogData
 	{
 		CString strID = _T("");
@@ -418,7 +410,7 @@ public:
 
 		int nIndex = 0;
 
-		bool SaveToFile();
+		virtual bool SaveToFile();
 		
 		virtual void SetLogDataAndPath() = 0;
 
@@ -427,9 +419,10 @@ public:
 
 	struct SLogData : ILogData
 	{
-
 		CString strThreadName = _T("");
+
 		EPreTag ePreTag = EPreTag::None;
+
 		EPostTag ePostTag = EPostTag::None;
 
 		void SetLogDataAndPath() override;
@@ -447,14 +440,14 @@ public:
 		}
 	};
 
-	struct SListFileLogItem : public SLogItem
+	struct SListLogData : ILogData
 	{
-		bool Save() override;
+		void SetLogDataAndPath() override;
+
+		bool SaveToFile() override;
 	};
 
 public:
-
-	void WriteProcessLog(const int nProductCount, const CString & strProductId, const EProcessLogThread eLogThread, const int nThreadIdx, const CString & strLogContent, const EPreTag ePreTag, const EPostTag ePostTag);
 
 	void WriteAlarmLog(const int nProductCount, const CString & strProductId, const CString & strLogContent);
 
@@ -474,19 +467,17 @@ public:
 
 	void WriteMainLoopStart(const int nMainThreadIdx = 1);
 
+	void WriteMainLoopStartWithCount(const int nCount, const int nMainThreadIdx = 1);
+
 	void WriteMainLoopEnd(const CString& strProductId, const int nMainThreadIdx = 1);
-
-	void PushLogItemToQueue(const std::shared_ptr<SLogItem>& pLogItem);
-
-	bool PopLogItem(std::shared_ptr<SLogItem>& pLog);
 
 	void RegisterProductId(const CString& strID);
 
 	void WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, CString strContent, ...);
 
-	void WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const EPreTag ePreTag, CString strContent, ...);
+	void WriteProcessLogPreTag(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const EPreTag ePreTag, CString strContent, ...);
 
-	void WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const EPreTag ePreTag, const EPostTag ePostTag, CString strContent, ...);
+	void WriteProcessLogDoubleTags(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const EPreTag ePreTag, const EPostTag ePostTag, CString strContent, ...);
 
 private:
 
@@ -519,10 +510,6 @@ private:
 	std::map<CString, int> m_tableProducts;
 
 	int m_nProductIndex;
-
-	CCriticalSection m_csQueue;
-
-	std::queue<std::shared_ptr<SLogItem>> m_queueLogItem;
 
 	CCriticalSection m_csThreadRunningLock;
 
