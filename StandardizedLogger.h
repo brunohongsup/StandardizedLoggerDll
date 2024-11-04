@@ -12,7 +12,7 @@
 #include <cctype>
 #include <atlstr.h>
 #include <cstdarg>
-#include <map>
+#include <unordered_map>
 #include <algorithm>
 
 #pragma comment(lib, "Shlwapi.lib")
@@ -345,6 +345,22 @@ namespace StandardizedLogging
 	}
 }
 
+struct CStringHash
+{
+	std::size_t operator()(const CString& str) const
+	{
+		return std::hash<std::wstring>()((LPCTSTR)str);
+	}
+};
+
+struct CStringEqual
+{
+	bool operator()(const CString& lhs, const CString& rhs) const
+	{
+		return lhs.Compare(rhs) == 0;
+	}
+};
+
 class CStandardizedLogger
 {
 public:
@@ -408,6 +424,8 @@ public:
 
 		CString strLogData;
 
+		CString strID = _T("");
+
 		virtual bool SaveToFile();
 		
 		virtual void SetLogDataAndPath() = 0;
@@ -432,7 +450,6 @@ public:
 
 	struct SProcessLogData : SLogData
 	{
-		CString strID = _T("");
 
 		CString strThreadName = _T("");
 
@@ -441,6 +458,8 @@ public:
 		EPostTag ePostTag = EPostTag::None;
 
 		void SetLogDataAndPath() override;
+
+		CTime tmLogTime;
 
 		bool operator <(const SLogData &sValue) const
 		{
@@ -460,9 +479,10 @@ public:
 		SListLogData()
 		{
 			nIndex = -1;
+			strID.Empty();
 		}
 
-		void SetLogDataAndPath() override;
+		void SetLogDataAndPath() override { }
 
 		bool SaveToFile() override;
 	};
@@ -494,6 +514,8 @@ public:
 	void RegisterProductId(const CString& strID);
 
 	void WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, CString strContent, ...);
+
+	void WriteProcessLogWithCount(const StandardizedLogging::EProcessLogThread eLogThread, const int nBarcodeCount, const int nThreadIdx, const CString strProductID, CString strContent, ...);
 
 	void WriteProcessLogPreTag(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const EPreTag ePreTag, CString strContent, ...);
 
@@ -527,7 +549,7 @@ private:
 
 	std::queue<std::shared_ptr<SLogData>> m_queLogData;
 
-	std::map<CString, int> m_tableProducts;
+	std::unordered_map<CString, int, CStringHash, CStringEqual> m_tableProducts;
 
 	int m_nProductIndex;
 
