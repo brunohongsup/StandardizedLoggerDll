@@ -76,7 +76,7 @@ UINT CStandardizedLogger::saveLogThreading(LPVOID pParam)
 
 		if(bIsQueueEmpty)
 		{
-			Sleep(2000);
+			Sleep(3000);
 			continue;
 		}
 
@@ -617,17 +617,14 @@ bool CStandardizedLogger::SLogData::SaveToFile()
 
 bool CStandardizedLogger::SLogData::WriteToFile()
 {
-	CTime curTime = CTime::GetCurrentTime();
 	CString strDirPath;
-	auto pInstance = CStandardizedLogger::GetInstance();
 	strDirPath = strFilePath;
-
 	LPTSTR buffer = strDirPath.GetBuffer();
 	PathRemoveFileSpec(buffer);
 	strDirPath.ReleaseBuffer();
-	if(!PathFileExists(buffer))
+	if(!PathFileExists(strDirPath))
 	{
-		BOOL ret = CreateDirectoryRecursive(buffer);
+		BOOL ret = CreateDirectoryRecursive(strDirPath);
 		if(!ret)
 		{
 			DWORD dwError = GetLastError();
@@ -708,6 +705,11 @@ void CStandardizedLogger::SListLogData::SetLogDataAndPath()
 	return;
 }
 
+void CharDeleter(char* ptr)
+{
+	delete[] ptr;
+}
+
 bool CStandardizedLogger::SListLogData::SaveToFile()
 {
 	auto& strFilePath = this->strFilePath;
@@ -734,48 +736,48 @@ bool CStandardizedLogger::SListLogData::SaveToFile()
 			DWORD dwError = GetLastError();
 			CString strMsg;
 			strMsg.Format(_T("[StandardizedLog] Failed To Read File. Error Code : %d"), dwError);
-			//ToDo - CLogManager
+			//ToDo - CLogManager 
 			return true;
 		}
 
 		auto buffer = strLogContents.GetBuffer();
 		int nUtf8Len = WideCharToMultiByte(CP_UTF8, 0, buffer, -1, NULL, 0, NULL, NULL);
 		char* szFindContent = new char[nUtf8Len];
-		WideCharToMultiByte(CP_UTF8, 0, buffer, -1, szFindContent, nUtf8Len, NULL, NULL);
-		size_t nfoundIdx = strBufRead.find(szFindContent);
+		std::shared_ptr<char> pFindContent(szFindContent, CharDeleter);
+		WideCharToMultiByte(CP_UTF8, 0, buffer, -1, pFindContent.get(), nUtf8Len, NULL, NULL);
+		const size_t nfoundIdx = strBufRead.find(pFindContent.get());
 		if(nfoundIdx == std::string::npos)
 		{
-			bool bContainsNumber = false;
-			char* tmp = szFindContent;
-			int nNumberIdx = 0;
+			bool bDoesThreadNameContainNumber = false;
+			char* tmp = pFindContent.get();
+			int nThreadNumberPos = 0;
 			while(*tmp)
 			{
 				if(std::isdigit(*tmp))
 				{
-					bContainsNumber = true;
+					bDoesThreadNameContainNumber = true;
 					break;
 				}
 
 				++tmp;
-				++nNumberIdx;
+				++nThreadNumberPos;
 			}
 
-			if(!bContainsNumber)
+			if(!bDoesThreadNameContainNumber)
 			{
-				delete[] szFindContent;
 				return WriteToFile();
 			}
 
 			else
 			{
-				std::string strTmp(szFindContent);
-				const int nWriteThreadIdx = szFindContent[nNumberIdx] - '0';
-				strTmp.resize(nNumberIdx);
+				std::string strTmp(pFindContent.get());
+				const int nWriteThreadIdx = strTmp[nThreadNumberPos] - '0';
+				strTmp.resize(nThreadNumberPos);
 				size_t nFindNext = strBufRead.find(strTmp);
 				size_t nFindCur = strBufRead.length();
 				while(nFindNext != std::string::npos)
 				{
-					const int nWrittenSameThreadIdx = strBufRead[nFindNext + nNumberIdx] - '0';
+					const int nWrittenSameThreadIdx = strBufRead[nFindNext + nThreadNumberPos] - '0';
 					nFindCur = nFindNext;
 					_ASSERT(nWrittenSameThreadIdx != nWriteThreadIdx);
 					if(nWrittenSameThreadIdx > nWriteThreadIdx)
@@ -795,18 +797,18 @@ bool CStandardizedLogger::SListLogData::SaveToFile()
 				file.Open(strFilePath, CFile::modeWrite);
 				file.Write(strBufRead.c_str(), (UINT)strBufRead.size());
 				file.Close();
-				delete[] szFindContent;
-
 				return true;
 			}
 		}
 
 		else
 		{
-			delete[] szFindContent;
 			return WriteToFile();
 		}
 	}
+	else
+	{
+		return WriteToFile();
+	}
 
-	return WriteToFile();
 }
