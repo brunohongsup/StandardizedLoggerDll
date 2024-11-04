@@ -7,12 +7,13 @@ std::shared_ptr<CStandardizedLogger> CStandardizedLogger::s_instance = nullptr;
 
 CString GetFormattedTime(const CTime& curTime);
 
+void CharDeleter(char* ptr);
+
 std::shared_ptr<CStandardizedLogger> CStandardizedLogger::GetInstance()
 {
 	if(s_instance == nullptr)
 	{
 		CSingleLock lock(&s_lockSection, TRUE);
-
 		if(nullptr == s_instance)
 		{
 			s_instance = std::shared_ptr<CStandardizedLogger>(new CStandardizedLogger());
@@ -496,15 +497,30 @@ void CStandardizedLogger::WriteProcessLog(const StandardizedLogging::EProcessLog
 
 	strResult.AppendFormatV(strContent, args);
 	va_end(args);
-
-	CTime curTime = CTime::GetCurrentTime();
-	CString strLogTime = GetFormattedTime(curTime);
 	auto pLogData = std::make_shared<SProcessLogData>();
+	pLogData->tmLogTime = CTime::GetCurrentTime();
+	CString strLogTime = GetFormattedTime(pLogData->tmLogTime);
 	pLogData->strThreadName.Format(_T("%s-%d"), StandardizedLogging::GetProcessLogThreadName(eLogThread), nThreadIdx);
 	pLogData->strTime = strLogTime;
 	pLogData->strID = strProductID;
 	pLogData->strLogData = strResult;
 	pLogData->nIndex = getProductIdxFromTable(strProductID);
+
+	pushLogData(pLogData);
+}
+
+void CStandardizedLogger::WriteProcessLogWithCount(const StandardizedLogging::EProcessLogThread eLogThread, const int nBarcodeCount, const int nThreadIdx, const CString strProductID, CString strContent, ...)
+{
+	CString strLogContent;
+	strLogContent.AppendFormat(m_strVisionSystemMinorName);
+	strLogContent.AppendFormat(_T(",[MLS]"));
+	auto pLogData = std::make_shared<SProcessLogData>();
+	pLogData->tmLogTime = CTime::GetCurrentTime();
+	pLogData->strTime = GetFormattedTime(pLogData->tmLogTime);
+	pLogData->strThreadName.AppendFormat(_T("%s-%d"), StandardizedLogging::GetProcessLogThreadName(eLogThread), nThreadIdx);
+	pLogData->strID = NULL_ID;
+	pLogData->strLogData = strLogContent;
+	pLogData->nIndex = nBarcodeCount;
 
 	pushLogData(pLogData);
 }
@@ -670,6 +686,15 @@ bool CStandardizedLogger::SLogData::WriteToFile()
 		return false;
 }
 
+bool CStandardizedLogger::SLogData::operator<(const SLogData& sValue) const
+{
+	if(nIndex == sValue.nIndex)
+		return false;
+
+	else
+		return nIndex < sValue.nIndex;
+}
+
 void CStandardizedLogger::SProcessLogData::SetLogDataAndPath()
 {
 	auto& strFilePath = this->strFilePath;
@@ -693,21 +718,10 @@ void CStandardizedLogger::SProcessLogData::SetLogDataAndPath()
 		strAddLog.AppendFormat(_T(",%s"), strPostTag);
 	}
 
-	CTime curTime = CTime::GetCurrentTime();
 	auto pLogger = CStandardizedLogger::GetInstance();
-	strFilePath.AppendFormat(pLogger->getLogFilePath(curTime, ESystemName::Minor, ELogFileType::ProcessLog));
+	strFilePath.AppendFormat(pLogger->getLogFilePath(tmLogTime, ESystemName::Minor, ELogFileType::ProcessLog));
 	strLogData.Empty();
 	strLogData.AppendFormat(strAddLog);
-}
-
-void CStandardizedLogger::SListLogData::SetLogDataAndPath()
-{
-	return;
-}
-
-void CharDeleter(char* ptr)
-{
-	delete[] ptr;
 }
 
 bool CStandardizedLogger::SListLogData::SaveToFile()
@@ -741,7 +755,7 @@ bool CStandardizedLogger::SListLogData::SaveToFile()
 		}
 
 		auto buffer = strLogContents.GetBuffer();
-		int nUtf8Len = WideCharToMultiByte(CP_UTF8, 0, buffer, -1, NULL, 0, NULL, NULL);
+		const int nUtf8Len = WideCharToMultiByte(CP_UTF8, 0, buffer, -1, NULL, 0, NULL, NULL);
 		char* szFindContent = new char[nUtf8Len];
 		std::shared_ptr<char> pFindContent(szFindContent, CharDeleter);
 		WideCharToMultiByte(CP_UTF8, 0, buffer, -1, pFindContent.get(), nUtf8Len, NULL, NULL);
@@ -749,17 +763,17 @@ bool CStandardizedLogger::SListLogData::SaveToFile()
 		if(nfoundIdx == std::string::npos)
 		{
 			bool bDoesThreadNameContainNumber = false;
-			char* tmp = pFindContent.get();
+			char* pChTmp = pFindContent.get();
 			int nThreadNumberPos = 0;
-			while(*tmp)
+			while(*pChTmp)
 			{
-				if(std::isdigit(*tmp))
+				if(std::isdigit(*pChTmp))
 				{
 					bDoesThreadNameContainNumber = true;
 					break;
 				}
 
-				++tmp;
+				++pChTmp;
 				++nThreadNumberPos;
 			}
 
@@ -810,5 +824,9 @@ bool CStandardizedLogger::SListLogData::SaveToFile()
 	{
 		return WriteToFile();
 	}
+}
 
+void CharDeleter(char* ptr)
+{
+	delete[] ptr;
 }

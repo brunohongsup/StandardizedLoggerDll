@@ -431,6 +431,8 @@ public:
 		virtual void SetLogDataAndPath() = 0;
 
 		bool WriteToFile();
+
+		bool operator<(const SLogData &sValue) const;
 	};
 
 	struct SResultLogData : SLogData
@@ -457,21 +459,10 @@ public:
 
 		EPostTag ePostTag = EPostTag::None;
 
-		void SetLogDataAndPath() override;
-
 		CTime tmLogTime;
 
-		bool operator <(const SLogData &sValue) const
-		{
-			if(nIndex != sValue.nIndex)
-			{
-				return nIndex < sValue.nIndex;
-			}
-			else
-			{
-				return nIndex < sValue.nIndex;
-			}
-		}
+		void SetLogDataAndPath() override;
+
 	};
 
 	struct SListLogData : SLogData
