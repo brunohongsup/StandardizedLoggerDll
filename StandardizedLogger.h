@@ -213,7 +213,7 @@ namespace StandardizedLogging
 		SystemLog,
 		AlarmLog,
 		ResultLog,
-		ThreadList
+		ListLog
 	};
 
 	enum class EInterfaceTarget
@@ -374,12 +374,6 @@ public:
 
 	typedef StandardizedLogging::ELogFileType ELogFileType;
 
-	struct SPreTagInfo
-	{
-		EPreTag eTagFlag;
-		enum EInterfaceTarget eTarget;
-	};
-
 	enum class ESystemName
 	{
 		Major = 0,
@@ -427,32 +421,29 @@ public:
 		CString strID = _T("");
 
 		virtual bool SaveToFile();
-		
-		virtual void SetLogDataAndPath() = 0;
 
 		bool WriteToFile();
 
-		bool operator<(const SLogData &sValue) const;
+		bool operator<(const SLogData& sValue) const;
 	};
 
 	struct SResultLogData : SLogData
 	{
-		void SetLogDataAndPath() override {}
+
 	};
 
 	struct SAlarmLogData : SLogData
 	{
-		void SetLogDataAndPath() override {}
+
 	};
 
 	struct SSystemLogData : SLogData
 	{
-		void SetLogDataAndPath() override {}
+
 	};
 
 	struct SProcessLogData : SLogData
 	{
-
 		CString strThreadName = _T("");
 
 		EPreTag ePreTag = EPreTag::None;
@@ -460,9 +451,6 @@ public:
 		EPostTag ePostTag = EPostTag::None;
 
 		CTime tmLogTime;
-
-		void SetLogDataAndPath() override;
-
 	};
 
 	struct SListLogData : SLogData
@@ -473,8 +461,6 @@ public:
 			strID.Empty();
 		}
 
-		void SetLogDataAndPath() override { }
-
 		bool SaveToFile() override;
 	};
 
@@ -482,7 +468,7 @@ public:
 
 	void WriteAlarmLog(const CString& strProductId, const CString & strLogContent);
 
-	void WriteResultLog(const CString & strModuleId, const CString& strCellId, const StandardizedLogging::EResultValue eResultValue, const CString & strImgPath, const std::vector<CString>& vctLogs);
+	void WriteResultLog(const CString & strModuleId, const CString& strCellId, const StandardizedLogging::EResultValue eResultValue, const CString & strImgPath, const std::vector<CString>& vctLogs = std::vector<CString> {});
 
 	void WriteSystemLog(const CString & strProductId, const StandardizedLogging::ESystemLogThread eLogThread, const CString & strLogContent, const StandardizedLogging::EPreTag ePreTag, const StandardizedLogging::EPostTag ePostTag);
 
@@ -506,7 +492,7 @@ public:
 
 	void WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, CString strContent, ...);
 
-	void WriteProcessLogWithCount(const StandardizedLogging::EProcessLogThread eLogThread, const int nBarcodeCount, const int nThreadIdx, const CString strProductID, CString strContent, ...);
+	void WriteProcessLogWithCount(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const int nBarcodeCount, const CString strProductID, CString strContent, ...);
 
 	void WriteProcessLogPreTag(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const EPreTag ePreTag, CString strContent, ...);
 
@@ -522,6 +508,10 @@ private:
 
 	void stopSaveStandardLogThread();
 
+	void formatProcessLog(const std::shared_ptr<SProcessLogData>& pProcessLogData, EPreTag ePreTag, EPostTag ePostTag);
+
+	void writeProcessLogInternal(const std::shared_ptr<SProcessLogData>& pProcessLogData, EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductId);
+
 	static UINT saveLogThreading(LPVOID pParam);
 
 	CString getLogFilePath(const CTime& time, const ESystemName eName, const ELogFileType eLogType) const;
@@ -534,17 +524,15 @@ private:
 
 	int getProductIdxFromTable(const CString& strProductId);
 
-	CCriticalSection m_csLogDeque;
+	CCriticalSection m_csLogQueue;
 
-	CCriticalSection m_csTable;
+	CCriticalSection m_csProductIdxTableLock;
 
 	std::queue<std::shared_ptr<SLogData>> m_queLogData;
 
 	std::unordered_map<CString, int, CStringHash, CStringEqual> m_tableProducts;
 
 	int m_nProductIndex;
-
-	CCriticalSection m_csThreadRunningLock;
 
 	std::atomic_bool m_bThreadRunning;
 
@@ -559,8 +547,6 @@ private:
 	CString m_strVisionSystemMajorName;
 
 	bool m_bCanWriteToDDrive;
-
-	bool m_bIsProductEverRegistered;
 
 	constexpr static size_t MAXIMUM_TABLE_SIZE = 1000;
 
