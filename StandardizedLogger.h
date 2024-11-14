@@ -17,6 +17,10 @@
 
 #pragma comment(lib, "Shlwapi.lib")
 
+#define LIGHT_CONTROLLER_PORT_OPEN_FAIL _T("Light Controller_Port Open Fail")
+
+#define _3D_PROFILER_INITIALIZATION_FAIL _T("3D Profiler_Intialization Fail")
+
 #define SYNC_OUT _T("[S-O]")
 
 #define SYNC_IN _T("[S-I]")
@@ -427,6 +431,12 @@ public:
 		bool WriteToFile();
 
 		bool operator<(const SLogData& sValue) const;
+
+		SLogData()
+		{
+			strLogData.GetBuffer(100);
+			strLogData.ReleaseBuffer();
+		}
 	};
 
 	struct SResultLogData : SLogData
@@ -474,7 +484,11 @@ public:
 
 	void WriteResultLogWithoutImgPath(const CString & strModuleId, const CString& strCellId, const StandardizedLogging::EResultValue eResultValue, const std::vector<CString>& vctLogs = std::vector<CString> {});
 
-	void WriteSystemLog(const CString & strProductId, const StandardizedLogging::ESystemLogThread eLogThread, const CString & strLogContent, const StandardizedLogging::EPreTag ePreTag = EPreTag::None, const StandardizedLogging::EPostTag ePostTag = EPostTag::None);
+	void WriteSystemLog(const CString & strProductId, const StandardizedLogging::ESystemLogThread eLogThread, const CString & strLogContent);
+
+	void WriteSystemLogPreTag(const CString & strProductId, const StandardizedLogging::ESystemLogThread eLogThread, const CString & strLogContent, const StandardizedLogging::EPreTag ePreTag);
+
+	void WriteSystemLogPostTag(const CString & strProductId, const StandardizedLogging::ESystemLogThread eLogThread, const CString & strLogContent, const StandardizedLogging::EPostTag ePostTag);
 
 	void Clear();
 
@@ -513,6 +527,8 @@ private:
 	CStandardizedLogger();
 
 	bool init();
+
+	void writeSystemLogInternal(const CString & strProductId, const StandardizedLogging::ESystemLogThread eLogThread, const CString & strLogContent, const StandardizedLogging::EPreTag ePreTag, const StandardizedLogging::EPostTag ePostTag);
 
 	void startSaveStandardLogThread();
 
@@ -560,9 +576,9 @@ private:
 
 	bool m_bCanWriteToDDrive;
 
-	constexpr static size_t MAXIMUM_TABLE_SIZE = 1000;
+	constexpr static size_t MAXIMUM_TABLE_SIZE = 400;
 
-	static std::shared_ptr<CStandardizedLogger> s_instance;
+	static std::shared_ptr<CStandardizedLogger> s_pInstance;
 
 	static CCriticalSection s_lockSection;
 };
