@@ -27,6 +27,8 @@
 
 #define READ_BARCODE _T("Cetr,Rd Barcode ID")
 
+#define READ_BARCODE_WITH_ID(t1) ([](const CString& strId) { CString str; str.Format(_T("Cetr,Rd Barcode ID %s"), strId); return str; })(t1)
+
 #define FUNCTION_START _T("[FS]")
 
 #define FUNCTION_END _T("[FE]")
@@ -37,7 +39,7 @@
 
 #define IMAGE_PROC_DOUBLE(t1, t2) ([](const int nOp1, const int nOp2) { CString str; str.Format(_T("Proc Img %d-%d"), nOp1, nOp2); return str; })(t1, t2)
 
-#define IMAGE_PROC_SINGLE(t1) ([](const int nOp1) { CString str; str.Format(_T("Proc Img %d"), nOp1); return str; })(t1)
+#define IMAGE_PROC_SINGLE(t1) ([](const int nOp1) { CString str; str.Format(_T("Proc Img-%d"), nOp1); return str; })(t1)
 
 #define IMAGE_PROC _T("Proc Img")
 
@@ -47,7 +49,7 @@
 
 #define SAVE_IMAGE_TRIPLE(t1,t2,t3) ([](const int nOp1, const int nOp2, const int nOp3) { CString str; str.Format(_T("Sv Img %d-%d-%d"), nOp1, nOp2, nOp3); return str; })(t1, t2, t3)
 
-#define SAVE_IMAGE_DOUBLE(t1,t2) ([](const int nOp1, const int nOp2){ CString str; str.Format(_T("Sv Img %d-%d"), nOp1, nOp2); return str; })(t1, t2))
+#define SAVE_IMAGE_DOUBLE(t1,t2) ([](const int nOp1, const int nOp2){ CString str; str.Format(_T("Sv Img %d-%d"), nOp1, nOp2); return str; })(t1, t2)
 
 #define SAVE_IMAGE_SINGLE(t1) ([](const int nOp1) { CString str; str.Format(_T("Sv Img %d"), nOp1); return str; })(t1)
 
@@ -91,17 +93,17 @@
 
 #define PLC_RESULT_SIGNAL_OFF _T("Plc,Sig Off Ret")
 
-#define VISION_RESET_ACK_ON _T("Vp,Sig On Rst Ack")
+#define VISION_RESET_ACK_ON _T("Plc,Sig On Rst Ack")
 
-#define VISION_RESET_ACK_OFF _T("Vp,Sig Off Rst Ack")
+#define VISION_RESET_ACK_OFF _T("Plc,Sig Off Rst Ack")
 
-#define VISION_READY_ON _T("Vp,Sig On Rdy")
+#define VISION_READY_ON _T("Plc,Sig On Rdy")
 
-#define VISION_READY_OFF _T("Vp,Sig Off Rdy")
+#define VISION_READY_OFF _T("Plc,Sig Off Rdy")
 
-#define VISION_RESULT_SIGNAL_ON _T("Vp,Sig On Ret")
+#define VISION_RESULT_SIGNAL_ON _T("Plc,Sig On Ret")
 
-#define VISION_RESULT_SIGNAL_OFF _T("Vp,Sig Off Ret")
+#define VISION_RESULT_SIGNAL_OFF _T("Plc,Sig Off Ret")
 
 #define PLC_ACK_ON _T("Plc,Sig On Ack")
 
@@ -117,9 +119,9 @@
 
 #define NULL_ID _T("Null")
 
-#define VISION_COMPLETE_ON _T("Vp,Sig On Cmplt")
+#define VISION_COMPLETE_ON _T("Plc,Sig On Cmplt")
 
-#define VISION_COMPLETE_OFF _T("Vp,Sig Off Cmplt")
+#define VISION_COMPLETE_OFF _T("Plc,Sig Off Cmplt")
 
 #define MAIN_THREAD(t1) ([](const int t) { CString str; str.Format(_T("MAIN-THREAD-%d"), t); return str; })(t1)
 
@@ -470,7 +472,9 @@ public:
 
 	void WriteResultLog(const CString & strModuleId, const CString& strCellId, const StandardizedLogging::EResultValue eResultValue, const CString & strImgPath, const std::vector<CString>& vctLogs = std::vector<CString> {});
 
-	void WriteSystemLog(const CString & strProductId, const StandardizedLogging::ESystemLogThread eLogThread, const CString & strLogContent, const StandardizedLogging::EPreTag ePreTag, const StandardizedLogging::EPostTag ePostTag);
+	void WriteResultLogWithoutImgPath(const CString & strModuleId, const CString& strCellId, const StandardizedLogging::EResultValue eResultValue, const std::vector<CString>& vctLogs = std::vector<CString> {});
+
+	void WriteSystemLog(const CString & strProductId, const StandardizedLogging::ESystemLogThread eLogThread, const CString & strLogContent, const StandardizedLogging::EPreTag ePreTag = EPreTag::None, const StandardizedLogging::EPostTag ePostTag = EPostTag::None);
 
 	void Clear();
 
@@ -497,6 +501,12 @@ public:
 	void WriteProcessLogPreTag(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const EPreTag ePreTag, CString strContent, ...);
 
 	void WriteProcessLogDoubleTags(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, const EPreTag ePreTag, const EPostTag ePostTag, CString strContent, ...);
+
+	static std::vector<CString> SplitCString(const CString& str, const TCHAR delimiter);
+
+	bool AddProductImgPath(const CString& strProductId, const CString& strImgPath);
+
+	bool TryGetImgPath(const CString& strProductId, CString& strImgPath);
 
 private:
 
@@ -531,6 +541,8 @@ private:
 	std::queue<std::shared_ptr<SLogData>> m_queLogData;
 
 	std::unordered_map<CString, int, CStringHash, CStringEqual> m_tableProducts;
+
+	std::unordered_map<CString, CString, CStringHash, CStringEqual> m_tableImgPath;
 
 	int m_nProductIndex;
 
