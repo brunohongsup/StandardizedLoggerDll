@@ -637,7 +637,7 @@ private:
 
 	std::queue<std::shared_ptr<IStandardLogData>> m_queLogData;
 
-	std::unordered_map<CString, int, CStringHash, CStringEqual> m_tableProducts;
+	std::unordered_map<CString, std::pair<int, CTime>, CStringHash, CStringEqual> m_tableProductIdx;
 
 	std::unordered_map<CString, std::vector<std::pair<int, CString>>, CStringHash, CStringEqual> m_tableImgPath;
 
@@ -656,6 +656,8 @@ private:
 	CString m_strVisionSystemMajorName;
 
 	bool m_bCanWriteToDDrive;
+
+	CTime m_tmResetTime;
 
 	constexpr static size_t MAXIMUM_TABLE_SIZE = 400;
 

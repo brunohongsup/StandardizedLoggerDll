@@ -1,4 +1,4 @@
-#include "pch.h"
+#include "stdafx.h"
 #include "StandardizedLogger.h"
 
 CCriticalSection CStandardizedLogger::s_lockSection;
@@ -30,8 +30,8 @@ void CStandardizedLogger::WriteMainLoopStart(const int nMainThreadIdx)
 	strMainLoopStart.AppendFormat(_T("%s,[MLS]"), m_strVisionSystemMinorName);
 	{
 		CSingleLock lock(&m_csProductIdxTableLock, TRUE);
-		auto it = m_tableProducts.find(NULL_ID);
-		it->second = ++m_nProductIndex;
+		auto it = m_tableProductIdx.find(NULL_ID);
+		it->second.first = ++m_nProductIndex;
 	}
 
 	WriteProcessLog(EProcessLogThread::MainThread, nMainThreadIdx, NULL_ID, strMainLoopStart);
@@ -48,7 +48,7 @@ void CStandardizedLogger::WriteMainLoopEnd(const CString& strProductId, const in
 {
 	CString strMainLoopEnd;
 	strMainLoopEnd.AppendFormat(_T("%s,[MLE]"), m_strVisionSystemMinorName);
-	WriteProcessLog(EProcessLogThread::MainThread, nMainThreadIdx, strProductId, strMainLoopEnd);
+	WriteProcessLogWithRecentCellInfo(EProcessLogThread::MainThread, nMainThreadIdx, strProductId, strMainLoopEnd);
 }
 
 UINT CStandardizedLogger::saveLogThreading(LPVOID pParam)
@@ -139,15 +139,15 @@ bool CStandardizedLogger::init()
 	bool bRet = true;
 	do
 	{
-		auto findNullId = m_tableProducts.find(NULL_ID);
-		if(findNullId != std::end(m_tableProducts))
+		auto findNullId = m_tableProductIdx.find(NULL_ID);
+		if(findNullId != std::end(m_tableProductIdx))
 		{
 			_ASSERT(false);
 			AfxMessageBox(_T("[StandardizedLog] Inititlization Failed - NULL_ID Index is not set to 1"));
 			return false;
 		}
 
-		m_tableProducts.emplace(NULL_ID, 0);
+		m_tableProductIdx.emplace(NULL_ID, 0);
 		TCHAR szPath[MAX_PATH];
 		m_strExeFileName.Empty();
 		if(GetModuleFileNameW(NULL, szPath, MAX_PATH))
@@ -252,8 +252,11 @@ bool CStandardizedLogger::init()
 						
 					}
 					
+					CTime curTime = CTime::GetCurrentTime();
+					m_tmResetTime = CTime(curTime.GetYear(), curTime.GetMonth(), curTime.GetDay(), 6, 0, 0);
 				}
 
+				
 			}
 
 		}
@@ -364,8 +367,8 @@ void CStandardizedLogger::pushLogData(const std::shared_ptr<IStandardLogData>& p
 int CStandardizedLogger::getProductIdxFromTable(const CString& strProductId)
 {
 	CSingleLock lock(&m_csProductIdxTableLock, TRUE);
-	auto findProduct = m_tableProducts.find(strProductId);
-	if(findProduct == std::end(m_tableProducts))
+	auto findProduct = m_tableProductIdx.find(strProductId);
+	if(findProduct == std::end(m_tableProductIdx))
 		return m_nProductIndex;
 
 	else
@@ -867,21 +870,30 @@ void CStandardizedLogger::RegisterProductId(const CString& strID)
 		return;
 
 	CSingleLock lock(&m_csProductIdxTableLock, TRUE);
-	auto findProduct = m_tableProducts.find(strID);
-	if(findProduct == std::end(m_tableProducts))
-		m_tableProducts.emplace(strID, m_nProductIndex);
+	auto findProduct = m_tableProductIdx.find(strID);
+	if(findProduct == std::end(m_tableProductIdx))
+	{
+		CTime curTime = CTime::GetCurrentTime();
+		CTimeSpan timeDiff = curTime - m_tmResetTime;
+		if(timeDiff.GetTotalHours() >= 24)
+		{
+			m_nProductIndex = 0;
+		}
 
-	if(m_tableProducts.size() > MAXIMUM_TABLE_SIZE)
+		m_tableProductIdx.emplace(strID, m_nProductIndex);
+	}
+
+	if(m_tableProductIdx.size() > MAXIMUM_TABLE_SIZE)
 	{
 		std::vector<int> vctProductCount {};
 		vctProductCount.reserve(MAXIMUM_TABLE_SIZE + 10);
-		for(auto it = m_tableProducts.begin(); it != m_tableProducts.end(); it++)
+		for(auto it = m_tableProductIdx.begin(); it != m_tableProductIdx.end(); it++)
 			vctProductCount.push_back(it->second);
 
 		std::sort(std::begin(vctProductCount), std::end(vctProductCount));
 		std::vector<int> vctRemoveTarget(std::begin(vctProductCount), std::begin(vctProductCount) + MAXIMUM_TABLE_SIZE / 2);
 
-		for(auto it = m_tableProducts.begin(); it != m_tableProducts.end();)
+		for(auto it = m_tableProductIdx.begin(); it != m_tableProductIdx.end();)
 		{
 			auto findComp = [it](const int nValue)
 			{
@@ -903,14 +915,11 @@ void CStandardizedLogger::RegisterProductId(const CString& strID)
 						m_tableImgPath.erase(findFromImgPath);
 				}
 		
-				it = m_tableProducts.erase(it);
+				it = m_tableProductIdx.erase(it);
 			}
 
 			else
 				++it;
-
-			
-			
 		}
 	}
 }
