@@ -75,13 +75,19 @@
 
 #define SAVE_DATA_INSP_SINGLE(t1) ([](const int nOp1) { CString str; str.Format(_T("Sv Data Insp-%d"), nOp1); return str; })(t1)
 
+
+#define SAVE_DATA_INSP_DOUBLE(t1, t2) ([](const int nOp1, const int nOp2) { CString str; str.Format(_T("Sv Data Insp %d-%d"), nOp1, nOp2); return str; })(t1, t2)
+
 #define SAVE_DATA_INSP _T("Sv Data Insp")
+
+#define PATH_PARSE_ERROR _T("Fail To Parse Img Path")
+
 
 #define SAVE_DATA_SPC_SINGLE(t1) ([](const int nOp1) { CString str; str.Format(_T("Sv Data Spc-%d"), nOp1); return str; })(t1)
 
 #define SEND_RESULT_TRIPLE(t1, t2, t3) ([](const int nOp1, const int nOp2, const int nOp3) { CString str; str.Format(_T("Sd Ret %d-%d-%d"), nOp1, nOp2, nOp3); return str; })(t1,t2,t3)
 
-#define SEND_RESULT_DOUBLE(t1, t2) ([](const int nOp1, const int nOp2) { CString str; str.Format(_T("Sd Ret %d-%d"), nOp1, nOp2); return str; })(t1, t2)
+#define SEND_RESULT_DOUBLE(t1, t2) ([](const int nOp1, const int nOp2) { CString str; str.Format(_T("Plc,Sd Ret %d-%d"), nOp1, nOp2); return str; })(t1, t2)
 
 #define SEND_RESULT_SINGLE(t1) ([](const int nOp1) { CString str; str.Format(_T("Sd Ret-%d"), nOp1); return str; })(t1)
 
@@ -219,7 +225,14 @@ namespace StandardizedLogging
 		SystemLog,
 		AlarmLog,
 		ResultLog,
-		ListLog
+		ListLog,
+		RecentProductInfo,
+	};
+
+	struct SLogFileType
+	{	
+		enum class ELogFileType eLogFileType;
+		CString ToString();
 	};
 
 	enum class EInterfaceTarget
@@ -310,6 +323,7 @@ namespace StandardizedLogging
 			_T("ALARM"),
 			_T("RESULT"),
 			_T("LIST")
+			_T("RecentCellInfo")
 		};
 
 		const int nLogIdx = static_cast<int>(logType);
@@ -414,19 +428,71 @@ public:
 		SaveProcess,
 	};
 
-	struct SLogData
+	enum class EFileExtensionType
 	{
-		int nIndex = 0;
+		Jpg,
+		Bmp,
+		Csv,
+		Txt,
+	};
+
+	struct SFileExtensionType
+	{
+		enum class EFileExtensionType eType;
+		
+		CString ToString()
+		{
+			switch(eType)
+			{
+			case EFileExtensionType::Bmp:
+				return _T(".bmp");
+				break;
+
+			case EFileExtensionType::Csv:
+				return _T(".csv");
+				break;
+
+			case EFileExtensionType::Jpg:
+				return _T(".jpg");
+				break;
+
+			case EFileExtensionType::Txt:
+				return _T(".txt");
+				break;
+
+			default:
+
+				break;
+			}
+
+			return _T("");
+		}
+
+	};
+
+	struct IStandardLogData
+	{
+		CString strLogData;
 
 		CString strFilePath = _T("");
 
-		CString strTime = _T("");
+		virtual bool SaveToFile() = 0;
+	};
 
-		CString strLogData;
+	struct SRecentProductInfoData : IStandardLogData
+	{
+		bool SaveToFile() override;
+	};
+
+	struct SLogData : IStandardLogData
+	{
+		int nIndex = 0;
+
+		CString strTime = _T("");
 
 		CString strID = _T("");
 
-		virtual bool SaveToFile();
+		bool SaveToFile() override;
 
 		bool WriteToFile();
 
@@ -476,13 +542,15 @@ public:
 		bool SaveToFile() override;
 	};
 
+	private:
+
 public:
 
-	void WriteAlarmLog(const CString& strProductId, const CString & strLogContent);
+	void WriteAlarmLog(const CString& strProductId, const CString & strLogContent);	
 
-	void WriteResultLog(const CString & strModuleId, const CString& strCellId, const StandardizedLogging::EResultValue eResultValue, const CString & strImgPath, const std::vector<CString>& vctLogs = std::vector<CString> {});
+	void WriteResultLog(const CString& strProductId, const int nViewNumber, bool bInspResult);
 
-	void WriteResultLogWithoutImgPath(const CString & strModuleId, const CString& strCellId, const StandardizedLogging::EResultValue eResultValue, const std::vector<CString>& vctLogs = std::vector<CString> {});
+	void WriteResultLogWithValues(const CString& strProductId, const int nViewNumber, bool bInspResult, const std::vector<CString>& vctValues);
 
 	void WriteSystemLog(const CString & strProductId, const StandardizedLogging::ESystemLogThread eLogThread, const CString & strLogContent);
 
@@ -518,15 +586,21 @@ public:
 
 	static std::vector<CString> SplitCString(const CString& str, const TCHAR delimiter);
 
-	bool AddProductImgPath(const CString& strProductId, const CString& strImgPath);
+	bool AddProductImgPath(const CString& strProductId, const int nViewNumber, const CString& strImgPath);
 
-	bool TryGetImgPath(const CString& strProductId, CString& strImgPath);
+	bool TryGetImgPath(const CString& strProductId, const int nViewNumber, CString& strImgPath);
+
+	static CString GetFilePath(const CString& strProductId, const int nCamIdx, const int nImgIdx, bool bIsOk,bool bIsOverlay, EFileExtensionType eFileType);
 
 private:
 
 	CStandardizedLogger();
 
 	bool init();
+
+	void WriteProcessLogWithRecentCellInfo(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, CString strContent, ...);
+
+	void writeResultLogInternal(const CString & strModuleId, const CString& strCellId, const StandardizedLogging::EResultValue eResultValue, const CString & strImgPath, const std::vector<CString>& vctLogs = std::vector<CString> {});
 
 	void writeSystemLogInternal(const CString & strProductId, const StandardizedLogging::ESystemLogThread eLogThread, const CString & strLogContent, const StandardizedLogging::EPreTag ePreTag, const StandardizedLogging::EPostTag ePostTag);
 
@@ -538,6 +612,8 @@ private:
 
 	void writeProcessLogInternal(const std::shared_ptr<SProcessLogData>& pProcessLogData, EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductId);
 
+	void writeRecentProductInfo(const CString& strProductId);
+
 	static UINT saveLogThreading(LPVOID pParam);
 
 	CString getLogFilePath(const CTime& time, const ESystemName eName, const ELogFileType eLogType) const;
@@ -546,7 +622,7 @@ private:
 
 	void pushListLog(const CTime& curTime, const CString& strThreadName);
 
-	void pushLogData(const std::shared_ptr<SLogData>& pLogData);
+	void pushLogData(const std::shared_ptr<IStandardLogData>& pLogData);
 
 	int getProductIdxFromTable(const CString& strProductId);
 
@@ -554,11 +630,13 @@ private:
 
 	CCriticalSection m_csProductIdxTableLock;
 
-	std::queue<std::shared_ptr<SLogData>> m_queLogData;
+	CCriticalSection m_csImagePathTableLock;
+
+	std::queue<std::shared_ptr<IStandardLogData>> m_queLogData;
 
 	std::unordered_map<CString, int, CStringHash, CStringEqual> m_tableProducts;
 
-	std::unordered_map<CString, CString, CStringHash, CStringEqual> m_tableImgPath;
+	std::unordered_map<CString, std::vector<std::pair<int, CString>>, CStringHash, CStringEqual> m_tableImgPath;
 
 	int m_nProductIndex;
 

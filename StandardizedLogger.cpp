@@ -71,7 +71,7 @@ UINT CStandardizedLogger::saveLogThreading(LPVOID pParam)
 
 		CString strNextID;
 		CString strID;
-		std::shared_ptr<SLogData> pLogData {};
+		std::shared_ptr<IStandardLogData> pLogData {};
 		{
 			CSingleLock lock(&pInstance->m_csLogQueue, TRUE);
 			pLogData = queueLogData.front();
@@ -107,7 +107,6 @@ void CStandardizedLogger::stopSaveStandardLogThread()
 
 void CStandardizedLogger::formatProcessLog(const std::shared_ptr<SProcessLogData>& pProcessLogData, EPreTag ePreTag, EPostTag ePostTag)
 {
-
 	CString strAddLog;
 	strAddLog.AppendFormat(_T("L[%s],"), pProcessLogData->strTime);
 	strAddLog.AppendFormat(_T("%010d,"), pProcessLogData->nIndex);
@@ -223,6 +222,32 @@ bool CStandardizedLogger::init()
 	return bRet;
 }
 
+void CStandardizedLogger::WriteProcessLogWithRecentCellInfo(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, CString strContent, ...)
+{
+	auto pLogData = std::make_shared<SProcessLogData>();
+	writeProcessLogInternal(pLogData, eLogThread, nThreadIdx, strProductID);
+	va_list args;
+	va_start(args, strContent);
+	CString strResult;
+
+	strResult.AppendFormatV(strContent, args);
+	va_end(args);
+
+	pLogData->strLogData = strResult;
+	pLogData->nIndex = getProductIdxFromTable(strProductID);
+	formatProcessLog(pLogData, EPreTag::None, EPostTag::None);
+	pushListLog(pLogData->tmLogTime, pLogData->strThreadName);
+	pushLogData(pLogData);
+	
+	auto pRecentProductInfo = std::make_shared<SRecentProductInfoData>();
+	auto& tmProductTime = pLogData->tmLogTime;
+	auto& strRecentProductInfo = pRecentProductInfo->strLogData;
+	strRecentProductInfo.AppendFormat(_T("%04d-%02d-%02d"), tmProductTime.GetYear(), tmProductTime.GetMonth(), tmProductTime.GetDay());
+	strRecentProductInfo.AppendFormat(_T("%010d,"), pLogData->nIndex);
+	strRecentProductInfo.AppendFormat(_T("%s,"), pLogData->strID);
+	pushLogData(pRecentProductInfo);
+}
+
 void CStandardizedLogger::writeSystemLogInternal(const CString & strProductId, const StandardizedLogging::ESystemLogThread eSystemLogThread, const CString & strLogContent, const StandardizedLogging::EPreTag ePreTag, const StandardizedLogging::EPostTag ePostTag)
 {
 	CTime curTime = CTime::GetCurrentTime();
@@ -271,7 +296,7 @@ void CStandardizedLogger::pushListLog(const CTime& curTime, const CString& strTh
 	pushLogData(pListLogItem);
 }
 
-void CStandardizedLogger::pushLogData(const std::shared_ptr<SLogData>& pLogData)
+void CStandardizedLogger::pushLogData(const std::shared_ptr<IStandardLogData>& pLogData)
 {
 	CSingleLock lock(&m_csLogQueue, TRUE);
 	pLogData->strLogData.AppendFormat(_T("\n"));
@@ -283,7 +308,7 @@ int CStandardizedLogger::getProductIdxFromTable(const CString& strProductId)
 	CSingleLock lock(&m_csProductIdxTableLock, TRUE);
 	auto findProduct = m_tableProducts.find(strProductId);
 	if(findProduct == std::end(m_tableProducts))
-		return -1;
+		return m_nProductIndex;
 
 	else
 		return findProduct->second;
@@ -318,7 +343,53 @@ void CStandardizedLogger::WriteAlarmLog(const CString& strProductId, const CStri
 	pushListLog(curTime, strThreadName);
 }
 
-void CStandardizedLogger::WriteResultLog(const CString& strModuleId, const CString& strCellId, const StandardizedLogging::EResultValue eResultValue, const CString& strImgPath, const std::vector<CString>& vctLogs)
+void CStandardizedLogger::WriteResultLog(const CString& strProductId, const int nViewNumber, bool bInspResult)
+{
+	CString strImgPath {};
+	strImgPath.GetBuffer(100);
+	strImgPath.ReleaseBuffer();
+	StandardizedLogging::EResultValue eResultVal{};
+	if(bInspResult)
+		eResultVal = StandardizedLogging::EResultValue::OK;
+
+	else
+		eResultVal = StandardizedLogging::EResultValue::NG;
+
+	bool bTryGetResult = TryGetImgPath(strProductId, nViewNumber, strImgPath);
+	if(!bTryGetResult)
+	{
+		WriteAlarmLog(strProductId, _T("IMG PATH NOT GIVEN"));
+		//ToDo - Alarm Dialog
+	}
+
+	//ToDo - in the case of PATH NOT GIVEN - Error Shoul Be Also Written In Alarm Log
+	writeResultLogInternal(strProductId, strProductId, eResultVal, strImgPath);
+}
+
+void CStandardizedLogger::WriteResultLogWithValues(const CString & strProductId, const int nViewNumber, bool bInspResult, const std::vector<CString>& vctValues)
+{
+	CString strImgPath {};
+	strImgPath.GetBuffer(100);
+	strImgPath.ReleaseBuffer();
+	StandardizedLogging::EResultValue eResultVal {};
+	if(bInspResult)
+		eResultVal = StandardizedLogging::EResultValue::OK;
+
+	else
+		eResultVal = StandardizedLogging::EResultValue::NG;
+
+	bool bTryGetResult = TryGetImgPath(strProductId, nViewNumber, strImgPath);
+	if(!bTryGetResult)
+	{
+		WriteAlarmLog(strProductId, _T("IMG PATH NOT GIVEN"));
+		//ToDo - Alarm Dialog
+	}
+
+	//ToDo - in the case of PATH NOT GIVEN - Error Shoul Be Also Written In Alarm Log
+	writeResultLogInternal(strProductId, strProductId, eResultVal, strImgPath, vctValues);
+}
+
+void CStandardizedLogger::writeResultLogInternal(const CString& strModuleId, const CString& strCellId, const StandardizedLogging::EResultValue eResultValue, const CString& strImgPath, const std::vector<CString>& vctLogs)
 {
 	CTime curTime = CTime::GetCurrentTime();
 	CString strLogTime = GetFormattedTime(curTime);
@@ -329,12 +400,7 @@ void CStandardizedLogger::WriteResultLog(const CString& strModuleId, const CStri
 	strLogPath.Empty();
 	strLogContents.AppendFormat(_T("L[%s],"), strLogTime);
 	const int nModuleIdx = getProductIdxFromTable(strModuleId);
-	if(nModuleIdx != -1)
-		strLogContents.AppendFormat(_T("%010d,"), nModuleIdx);
-
-	else
-		strLogContents.AppendFormat(_T("-,"));
-
+	strLogContents.AppendFormat(_T("%010d,"), nModuleIdx);
 	pLogData->nIndex = nModuleIdx;
 	strLogContents.AppendFormat(_T("%s,%s,"), strModuleId, strCellId);
 	if(eResultValue == StandardizedLogging::EResultValue::OK)
@@ -355,20 +421,6 @@ void CStandardizedLogger::WriteResultLog(const CString& strModuleId, const CStri
 	strLogPath.AppendFormat(getLogFilePath(curTime, ESystemName::Minor, ELogFileType::ResultLog));
 	pushLogData(pLogData);
 	pushListLog(curTime, _T("RESULT"));
-}
-
-void CStandardizedLogger::WriteResultLogWithoutImgPath(const CString & strModuleId, const CString & strCellId, const StandardizedLogging::EResultValue eResultValue, const std::vector<CString>& vctLogs)
-{
-	CString strImgPath{};
-	strImgPath.GetBuffer(100);
-	strImgPath.ReleaseBuffer();
-	bool bLookUpImgPath = TryGetImgPath(strModuleId, strImgPath);
-	if(bLookUpImgPath)
-		WriteResultLog(strModuleId, strCellId, eResultValue, strImgPath, vctLogs);
-	
-	else
-		WriteResultLog(strModuleId, strCellId, eResultValue, _T("IMG PATH NOT GIVEN"), vctLogs);
-
 }
 
 void CStandardizedLogger::WriteSystemLog(const CString & strProductId, const StandardizedLogging::ESystemLogThread eSystemLogThread, const CString & strLogContent)
@@ -395,21 +447,33 @@ CString CStandardizedLogger::getLogFilePath(const CTime& curTime, const ESystemN
 	else
 		strLogFilePath.AppendFormat(_T("C:\\"));
 
-	const int nYear = curTime.GetYear();
-	const int nMonth = curTime.GetMonth();
-	const int nDay = curTime.GetDay();
-	const int nHour = curTime.GetHour();
-	strLogFilePath.AppendFormat(_T("LOG_SW\\%04d%02d%02d%02d\\%02d\\"),
-								nYear,
-								nMonth,
-								nDay,
-								nHour,
-								nHour);
+	StandardizedLogging::SLogFileType sLogFileType {};
+	sLogFileType.eLogFileType = eLogType;
 
-	const CString strSystemName = getSystemName(eName);
-	const CString strLogFileType = GetLogTypeString(eLogType);
+	if(eLogType != ELogFileType::RecentProductInfo)
+	{
+		const int nYear = curTime.GetYear();
+		const int nMonth = curTime.GetMonth();
+		const int nDay = curTime.GetDay();
+		const int nHour = curTime.GetHour();
+		strLogFilePath.AppendFormat(_T("LOG_SW\\%04d%02d%02d%02d\\%02d\\"),
+									nYear,
+									nMonth,
+									nDay,
+									nHour,
+									nHour);
 
-	strLogFilePath.AppendFormat(_T("I_INSPID_%s-VISION_%s_%s_%04d%02d%02d%02d.txt"), strSystemName, strLogFileType, m_strExeFileName, nYear, nMonth, nDay, nHour);
+		const CString strSystemName = getSystemName(eName);
+		const CString strLogFileType = sLogFileType.ToString();
+
+		strLogFilePath.AppendFormat(_T("I_INSPID_%s-VISION_%s_%s_%04d%02d%02d%02d.txt"), strSystemName, strLogFileType, m_strExeFileName, nYear, nMonth, nDay, nHour);
+
+	}
+
+	else
+	{
+		strLogFilePath.AppendFormat(_T("LOG_SW\\%s.txt"), sLogFileType.ToString());
+	}	
 
 	return strLogFilePath;
 }
@@ -630,7 +694,6 @@ std::vector<CString> CStandardizedLogger::SplitCString(const CString& strInput, 
 	std::vector<CString> vctResult;
 	int nStart = 0;
 	int nEnd = 0;
-
 	while((nEnd = strInput.Find(tcDelimiter, nStart)) != -1)
 	{
 		CString token = strInput.Mid(nStart, nEnd - nStart);
@@ -642,37 +705,107 @@ std::vector<CString> CStandardizedLogger::SplitCString(const CString& strInput, 
 	return vctResult;
 }
 
-bool CStandardizedLogger::AddProductImgPath(const CString & strProductId, const CString & strImgPath)
+bool CStandardizedLogger::AddProductImgPath(const CString& strProductId, const int nViewNumber, const CString & strImgPath)
 {
+	CSingleLock lock(&m_csImagePathTableLock, TRUE);
 	auto lookUp = m_tableImgPath.find(strProductId);
 	if(lookUp == std::end(m_tableImgPath))
 	{
-		m_tableImgPath.emplace(strProductId, strImgPath);
+		std::vector<std::pair<int, CString>> vctImgPath{};
+		vctImgPath.reserve(10);
+		vctImgPath.emplace_back(nViewNumber, strImgPath);
+		m_tableImgPath.emplace(strProductId, vctImgPath);
 		return true;
 	}
 
 	else
 	{
-		return false;
+		std::vector<std::pair<int, CString>>& vctImgPath = lookUp->second;
+		bool bSameViewNumExist = false;
+		for(const std::pair<int, CString>& it : vctImgPath)
+		{
+			if(it.first == nViewNumber)
+			{
+				bSameViewNumExist = true;
+				break;
+			}
+		}
+
+		if(!bSameViewNumExist)
+		{
+			vctImgPath.emplace_back(std::make_pair(nViewNumber, strImgPath));
+			return true;
+		}
+
+		else
+			return false;
+
 	}
 }
 
-bool CStandardizedLogger::TryGetImgPath(const CString & strProductId, CString & strImgPath)
+bool CStandardizedLogger::TryGetImgPath(const CString& strProductId, const int nViewNumber, CString& strImgPath)
 {
+	CSingleLock lock(&m_csImagePathTableLock, TRUE);
 	auto findProductImgPath = m_tableImgPath.find(strProductId);
 	if(findProductImgPath == std::end(m_tableImgPath))
 		return false;
 
 	else
 	{
-		strImgPath = findProductImgPath->second;
-		return true;
+		const std::vector<std::pair<int, CString>>& vctViewImgPath = findProductImgPath->second;
+		for(const std::pair<int, CString>& it : vctViewImgPath)
+		{
+			if(it.first == nViewNumber)
+			{
+				strImgPath = it.second;
+				return true;
+			}
+		}
+
+		return false;
 	}
+}
+
+CString CStandardizedLogger::GetFilePath(const CString& strProductId, const int nCamIdx, const int nImgIdx, bool bIsOk, bool bIsOverlay, EFileExtensionType eFileType)
+{
+	_ASSERT((bIsOverlay && eFileType == EFileExtensionType::Jpg) || (!bIsOverlay));
+	CString strFilePath;
+	CString strFileName;
+	CTime tm = CTime::GetCurrentTime();
+	const int nYear = tm.GetYear();
+	const int nMonth = tm.GetMonth();
+	const int nDay = tm.GetDay();
+	strFilePath.AppendFormat(_T("D:\\DAT\\IMAGE\\%04d\\%02d\\%02d"), nYear, nMonth, nDay);
+	strFileName.AppendFormat(_T("%s_%d_%d_"), strProductId, nCamIdx + 1, nImgIdx + 1);
+	if(bIsOk)
+	{
+		strFilePath.AppendFormat(_T("\\OK\\%s\\"), strProductId);
+		strFileName.AppendFormat(_T("OK"));
+	}
+
+	else
+	{
+		strFilePath.AppendFormat(_T("\\NG\\%s\\"), strProductId);
+		strFileName.AppendFormat(_T("NG"));
+	}
+	
+	if(bIsOverlay)
+		strFileName.AppendFormat(_T("_Overlay"));
+
+	SFileExtensionType sFileExtension{};
+	sFileExtension.eType = eFileType;
+	strFileName.AppendFormat(sFileExtension.ToString());
+	strFilePath.AppendFormat(strFileName);
+
+	return strFilePath;
 }
 
 void CStandardizedLogger::RegisterProductId(const CString& strID)
 {
 	if(strID.GetLength() < 1)
+		return;
+
+	if(strID.Compare(NULL_ID) == 0)
 		return;
 
 	CSingleLock lock(&m_csProductIdxTableLock, TRUE);
@@ -705,10 +838,13 @@ void CStandardizedLogger::RegisterProductId(const CString& strID)
 			auto findCompValue = std::find_if(std::begin(vctRemoveTarget), std::end(vctRemoveTarget), findComp);
 			if(findCompValue != std::end(vctRemoveTarget))
 			{
-				auto findFromImgPath = m_tableImgPath.find(it->first);
-				if(findFromImgPath != end(m_tableImgPath))
-					m_tableImgPath.erase(findFromImgPath);
-
+				{
+					CSingleLock imagePathTableLock(&m_csImagePathTableLock, TRUE);
+					auto findFromImgPath = m_tableImgPath.find(it->first);
+					if(findFromImgPath != end(m_tableImgPath))
+						m_tableImgPath.erase(findFromImgPath);
+				}
+		
 				it = m_tableProducts.erase(it);
 			}
 
@@ -802,6 +938,7 @@ bool CStandardizedLogger::SListLogData::SaveToFile()
 			DWORD dwError = GetLastError();
 			CString strMsg;
 			strMsg.Format(_T("[StandardizedLog] Failed To Read File. Error Code : %d"), dwError);
+			//CLogManager::Write(0, _T("[StandardizedLogging] FAIL TO OPEN FILE FOR LIST LOG"));
 			return true;
 		}
 
@@ -815,6 +952,7 @@ bool CStandardizedLogger::SListLogData::SaveToFile()
 			DWORD dwError = GetLastError();
 			CString strMsg;
 			strMsg.Format(_T("[StandardizedLog] Failed To Read File. Error Code : %d"), dwError);
+			//CLogManager::Write(0, strMsg);
 			return true;
 		}
 
@@ -897,4 +1035,88 @@ bool CStandardizedLogger::SListLogData::SaveToFile()
 void CharDeleter(char* ptr)
 {
 	delete[] ptr;
+}
+
+bool CStandardizedLogger::SRecentProductInfoData::SaveToFile()
+{
+	CString strDirPath;
+	strDirPath = strFilePath;
+	LPTSTR buffer = strDirPath.GetBuffer();
+	PathRemoveFileSpec(buffer);
+	strDirPath.ReleaseBuffer();
+	if(!PathFileExists(strDirPath))
+	{
+		BOOL ret = CreateDirectoryRecursive(strDirPath);
+		if(!ret)
+		{
+			DWORD dwError = GetLastError();
+			CString strMsg;
+			strMsg.Format(_T("[StandardizedLog] Failed To Make Directory Path. Error Code : %d"), dwError);
+			return false;
+		}
+	}
+	
+	HANDLE hFile = CreateFile(
+		strFilePath,
+		GENERIC_WRITE,
+		0,
+		NULL,
+		CREATE_ALWAYS,
+		FILE_ATTRIBUTE_NORMAL,
+		NULL
+	);
+
+	if(hFile == INVALID_HANDLE_VALUE)
+		return false;
+
+	DWORD dwByesWritten {};
+	buffer = strLogData.GetBuffer();
+	const int nUtf8Len = WideCharToMultiByte(CP_UTF8, 0, buffer, -1, NULL, 0, NULL, NULL);
+	std::string strWrite;
+	strWrite.reserve(nUtf8Len);
+	const DWORD dwBytesToWrite = nUtf8Len - 1;
+	WideCharToMultiByte(CP_UTF8, 0, buffer, -1, &strWrite[0], nUtf8Len, NULL, NULL);
+	BOOL bWriteResult = WriteFile(hFile, &strWrite[0], dwBytesToWrite, &dwByesWritten, NULL);
+	CloseHandle(hFile);
+	strLogData.ReleaseBuffer();
+
+	if(TRUE == bWriteResult && dwBytesToWrite == dwByesWritten)
+		return true;
+
+	else
+		return false;
+
+}
+
+CString StandardizedLogging::SLogFileType::ToString()
+{
+	switch(eLogFileType)
+	{
+	case StandardizedLogging::ELogFileType::ProcessLog:
+		return _T("PROCESS");
+
+	case StandardizedLogging::ELogFileType::SystemLog:
+		return _T("SYSTEM");
+
+		break;
+	case StandardizedLogging::ELogFileType::AlarmLog:
+		return _T("ALARM");
+
+		break;
+	case StandardizedLogging::ELogFileType::ResultLog:
+		return _T("RESULT");
+
+		break;
+	case StandardizedLogging::ELogFileType::ListLog:
+		return _T("LIST");
+
+		break;
+	case StandardizedLogging::ELogFileType::RecentProductInfo:
+		return _T("RecentCellInfo");
+
+		break;
+	default:
+		return _T("LOG FILE TYPE NOT DEFINED");
+		break;
+	}
 }
