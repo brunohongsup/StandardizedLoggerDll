@@ -12,6 +12,9 @@
 #include <cctype>
 #include <atlstr.h>
 #include <cstdarg>
+#include <iostream>
+#include <sstream>
+#include <string>
 #include <unordered_map>
 #include <algorithm>
 
@@ -598,6 +601,8 @@ private:
 
 	bool init();
 
+	static std::vector<std::string> Split(const std::string& str, const char delimiter);
+
 	void WriteProcessLogWithRecentCellInfo(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, CString strContent, ...);
 
 	void writeResultLogInternal(const CString & strModuleId, const CString& strCellId, const StandardizedLogging::EResultValue eResultValue, const CString & strImgPath, const std::vector<CString>& vctLogs = std::vector<CString> {});
@@ -611,8 +616,6 @@ private:
 	void formatProcessLog(const std::shared_ptr<SProcessLogData>& pProcessLogData, EPreTag ePreTag, EPostTag ePostTag);
 
 	void writeProcessLogInternal(const std::shared_ptr<SProcessLogData>& pProcessLogData, EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductId);
-
-	void writeRecentProductInfo(const CString& strProductId);
 
 	static UINT saveLogThreading(LPVOID pParam);
 

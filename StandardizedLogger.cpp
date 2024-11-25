@@ -210,6 +210,50 @@ bool CStandardizedLogger::init()
 
 				}
 
+				else
+				{
+					const CString strRecentProductInfoFile = getLogFilePath(CTime::GetCurrentTime(), CStandardizedLogger::ESystemName::Minor, CStandardizedLogger::ELogFileType::RecentProductInfo);
+					if(PathFileExists(strRecentProductInfoFile))
+					{
+						CFile file;
+						BOOL bOpenFile = file.Open(strRecentProductInfoFile, CFile::modeRead);
+						if(!bOpenFile)
+						{
+							DWORD dwError = GetLastError();
+							CString strMsg;
+							strMsg.Format(_T("[StandardizedLog] Failed To Read RecentProductInfo File. Error Code : %d"), dwError);
+							return false;
+						}
+
+						unsigned long long ullFileSize = file.GetLength();
+						std::string strBufRead(ullFileSize, '\0');
+						strBufRead.reserve(150);
+						BOOL bReadResult = file.Read(&strBufRead[0], (UINT)ullFileSize);
+						file.Close();
+						if(!bReadResult)
+						{
+							DWORD dwError = GetLastError();
+							CString strMsg;
+							strMsg.Format(_T("[StandardizedLog] Failed To Read File. Error Code : %d"), dwError);
+							//CLogManager::Write(0, strMsg);
+							return true;
+						}
+
+						std::vector<std::string> vctRecnet = Split(strBufRead, ',');
+						if(vctRecnet.size() >= 3)
+						{
+							CString strRecentProductCount(vctRecnet[1].c_str());
+							m_nProductIndex =  _ttoi(strRecentProductCount);
+						}
+						else
+						{
+							//ToDo Recent Product Info File Format Wrong
+						}
+						
+					}
+					
+				}
+
 			}
 
 		}
@@ -220,6 +264,20 @@ bool CStandardizedLogger::init()
 	while(false);
 
 	return bRet;
+}
+
+std::vector<std::string> CStandardizedLogger::Split(const std::string & str, const char delimiter)
+{
+	std::vector<std::string> vctTokens;
+	vctTokens.reserve(10);
+	std::stringstream ss(str);
+	std::string strToken;
+	while(std::getline(ss, strToken, delimiter))
+	{
+		vctTokens.push_back(strToken);
+	}
+
+	return vctTokens;
 }
 
 void CStandardizedLogger::WriteProcessLogWithRecentCellInfo(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, CString strContent, ...)
@@ -1112,7 +1170,7 @@ CString StandardizedLogging::SLogFileType::ToString()
 
 		break;
 	case StandardizedLogging::ELogFileType::RecentProductInfo:
-		return _T("RecentCellInfo");
+		return _T("RecentProductInfo");
 
 		break;
 	default:
