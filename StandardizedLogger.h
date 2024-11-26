@@ -572,11 +572,11 @@ public:
 
 	CString GetVisionSystemMinorName() const;
 
-	void WriteMainLoopStart(const int nMainThreadIdx = 1);
+	void WriteMainLoopStart(const int nMainThreadIdx = 0);
 
-	void WriteMainLoopStartWithCount(const int nCount, const int nMainThreadIdx = 1);
+	void WriteMainLoopStartWithCount(const int nCount, const int nMainThreadIdx = 0);
 
-	void WriteMainLoopEnd(const CString& strProductId, const int nMainThreadIdx = 1);
+	void WriteMainLoopEnd(const CString& strProductId, const int nMainThreadIdx = 0);
 
 	void RegisterProductId(const CString& strID);
 
@@ -641,7 +641,7 @@ private:
 
 	std::queue<std::shared_ptr<IStandardLogData>> m_queLogData;
 
-	std::unordered_map<CString, int, CStringHash, CStringEqual> m_tableProductIdx;
+	std::unordered_map<CString, std::pair<int,CTime>, CStringHash, CStringEqual> m_tableProductIdx;
 
 	std::unordered_map<CString, std::pair<CTime,std::vector<std::pair<int, CString>>>, CStringHash, CStringEqual> m_tableImgPath;
 

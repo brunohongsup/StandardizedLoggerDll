@@ -30,8 +30,16 @@ void CStandardizedLogger::WriteMainLoopStart(const int nMainThreadIdx)
 	strMainLoopStart.AppendFormat(_T("%s,[MLS]"), m_strVisionSystemMinorName);
 	{
 		CSingleLock lock(&m_csProductIdxTableLock, TRUE);
+		CTime curTime = CTime::GetCurrentTime();
+		CTimeSpan timeDiff = curTime - m_tmResetTime;
+		if(timeDiff.GetTotalHours() >= 24)
+		{
+			m_tmResetTime = CTime(curTime.GetYear(), curTime.GetMonth(), curTime.GetDay(), 6, 0, 0);
+			m_nProductIndex = 0;
+		}
+
 		auto it = m_tableProductIdx.find(NULL_ID);
-		it->second = ++m_nProductIndex;
+		it->second.first = ++m_nProductIndex;
 	}
 
 	WriteProcessLog(EProcessLogThread::MainThread, nMainThreadIdx, NULL_ID, strMainLoopStart);
@@ -69,9 +77,7 @@ UINT CStandardizedLogger::saveLogThreading(LPVOID pParam)
 			continue;
 		}
 
-		CString strNextID;
-		CString strID;
-		std::shared_ptr<IStandardLogData> pLogData {};
+		std::shared_ptr<IStandardLogData> pLogData{};
 		{
 			CSingleLock lock(&pInstance->m_csLogQueue, TRUE);
 			pLogData = queueLogData.front();
@@ -142,12 +148,11 @@ bool CStandardizedLogger::init()
 		auto findNullId = m_tableProductIdx.find(NULL_ID);
 		if(findNullId != std::end(m_tableProductIdx))
 		{
-			_ASSERT(false);
 			AfxMessageBox(_T("[StandardizedLog] Inititlization Failed - NULL_ID Index is not set to 1"));
 			return false;
 		}
 
-		m_tableProductIdx.emplace(NULL_ID, 0);
+		m_tableProductIdx.emplace(NULL_ID, std::make_pair(0, CTime::GetCurrentTime()));
 		TCHAR szPath[MAX_PATH];
 		m_strExeFileName.Empty();
 		if(GetModuleFileNameW(NULL, szPath, MAX_PATH))
@@ -370,7 +375,10 @@ int CStandardizedLogger::getProductIdxFromTable(const CString& strProductId)
 		return m_nProductIndex;
 
 	else
-		return findProduct->second;
+	{
+		const std::pair<int, CTime>& productIdx = findProduct->second;
+		return productIdx.first;
+	}
 }
 
 void CStandardizedLogger::WriteAlarmLog(const CString& strProductId, const CString& strLogContent)
@@ -859,7 +867,11 @@ bool CStandardizedLogger::TryGetImgPath(const CString& strProductId, const int n
 
 CString CStandardizedLogger::GetFilePath(const CString& strProductId, const int nCamIdx, const int nImgIdx, bool bIsOk, bool bIsOverlay, EFileExtensionType eFileType)
 {
-	_ASSERT((bIsOverlay && eFileType == EFileExtensionType::Jpg) || (!bIsOverlay));
+	if((bIsOverlay && eFileType == EFileExtensionType::Jpg) || (!bIsOverlay))
+	{
+		return _T("ERROR");
+	}
+
 	CString strFilePath;
 	CString strFileName;
 	CTime tm = CTime::GetCurrentTime();
@@ -903,17 +915,30 @@ void CStandardizedLogger::RegisterProductId(const CString& strID)
 	auto findProduct = m_tableProductIdx.find(strID);
 	if(findProduct == std::end(m_tableProductIdx))
 	{
-		CTime curTime = CTime::GetCurrentTime();
-		CTimeSpan timeDiff = curTime - m_tmResetTime;
-		if(timeDiff.GetTotalHours() >= 24)
+		if(m_tableProductIdx.size() > MAXIMUM_TABLE_SIZE)
 		{
-			m_tmResetTime = CTime(curTime.GetYear(), curTime.GetMonth(), curTime.GetDay(), 6, 0, 0);
-			m_tableProductIdx.clear();
-			m_nProductIndex = 0;
+			std::vector<std::pair<CString, CTime>> vctPathTime {};
+			vctPathTime.reserve(MAXIMUM_TABLE_SIZE + 10);
+			for(auto it : m_tableProductIdx)
+			{
+				CString strProductId = it.first;
+				CTime tmProduct = it.second.first;
+				vctPathTime.emplace_back(std::make_pair(strProductId, tmProduct));
+			}
+
+			std::sort(std::begin(vctPathTime), std::end(vctPathTime));
+			const int nEraseCount = (int)vctPathTime.size() - 50;
+			for(int i = 0; i < nEraseCount; i++)
+			{
+				const std::pair<CString, CTime>& oldData = vctPathTime[i];
+				auto findImgPath = m_tableImgPath.find(oldData.first);
+				if(findImgPath != std::end(m_tableImgPath))
+					m_tableImgPath.erase(findImgPath);
+			}
 		}
-		
-		m_tableProductIdx.emplace(strID, m_nProductIndex);
-	}
+
+		m_tableProductIdx.emplace(strID, std::make_pair(m_nProductIndex, CTime::GetCurrentTime()));
+	}	
 }
 
 bool CStandardizedLogger::SLogData::SaveToFile()
@@ -1054,7 +1079,6 @@ bool CStandardizedLogger::SListLogData::SaveToFile()
 				{
 					const int nWrittenSameThreadIdx = strBufRead[nFindNext + nThreadNumberPos] - '0';
 					nFindCur = nFindNext;
-					_ASSERT(nWrittenSameThreadIdx != nWriteThreadIdx);
 					if(nWrittenSameThreadIdx > nWriteThreadIdx)
 					{
 						break;
