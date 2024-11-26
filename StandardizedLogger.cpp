@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "pch.h"
 #include "StandardizedLogger.h"
 
 CCriticalSection CStandardizedLogger::s_lockSection;
@@ -31,7 +31,7 @@ void CStandardizedLogger::WriteMainLoopStart(const int nMainThreadIdx)
 	{
 		CSingleLock lock(&m_csProductIdxTableLock, TRUE);
 		auto it = m_tableProductIdx.find(NULL_ID);
-		it->second.first = ++m_nProductIndex;
+		it->second = ++m_nProductIndex;
 	}
 
 	WriteProcessLog(EProcessLogThread::MainThread, nMainThreadIdx, NULL_ID, strMainLoopStart);
@@ -255,8 +255,6 @@ bool CStandardizedLogger::init()
 					CTime curTime = CTime::GetCurrentTime();
 					m_tmResetTime = CTime(curTime.GetYear(), curTime.GetMonth(), curTime.GetDay(), 6, 0, 0);
 				}
-
-				
 			}
 
 		}
@@ -772,20 +770,51 @@ bool CStandardizedLogger::AddProductImgPath(const CString& strProductId, const i
 	auto lookUp = m_tableImgPath.find(strProductId);
 	if(lookUp == std::end(m_tableImgPath))
 	{
+		if(m_tableImgPath.size() > MAXIMUM_TABLE_SIZE)
+		{
+			std::vector<std::pair<CString, CTime>> vctPathTime{};
+			vctPathTime.reserve(MAXIMUM_TABLE_SIZE + 10);
+			for(auto it : m_tableImgPath)
+			{
+				CString strProductId = it.first;
+				CTime tmProduct = it.second.first;
+				vctPathTime.emplace_back(std::make_pair(strProductId, tmProduct));
+			}
+
+			auto sortByTimeSpanInDescendingOrder = [](const std::pair<CString, CTime>& op1, const std::pair<CString, CTime>& op2)
+			{
+				return op1.second < op2.second;
+			};
+
+			std::sort(std::begin(vctPathTime), std::end(vctPathTime), sortByTimeSpanInDescendingOrder);
+			const size_t nEraseCount = vctPathTime.size() / 2;
+			for(size_t i = 0; i < nEraseCount; i++)
+			{
+				const std::pair<CString, CTime>& oldData = vctPathTime[i]; 
+				auto findImgPath = m_tableImgPath.find(oldData.first);
+				if(findImgPath != std::end(m_tableImgPath))
+					m_tableImgPath.erase(findImgPath);
+				
+			}
+		}
+
 		std::vector<std::pair<int, CString>> vctImgPath{};
 		vctImgPath.reserve(10);
-		vctImgPath.emplace_back(nViewNumber, strImgPath);
-		m_tableImgPath.emplace(strProductId, vctImgPath);
+		CTime curTime = CTime::GetCurrentTime();
+		vctImgPath.emplace_back(std::make_pair(nViewNumber, strImgPath));
+		m_tableImgPath.emplace(strProductId, std::make_pair(curTime, vctImgPath));
 		return true;
 	}
 
 	else
 	{
-		std::vector<std::pair<int, CString>>& vctImgPath = lookUp->second;
+		std::pair<CTime, std::vector<std::pair<int, CString>>>& ImgPathTime = lookUp->second;
 		bool bSameViewNumExist = false;
-		for(const std::pair<int, CString>& it : vctImgPath)
+		std::vector<std::pair<int, CString>>& vctImgPath = ImgPathTime.second;
+		for(const auto& it : vctImgPath)
 		{
-			if(it.first == nViewNumber)
+			const int nViewNumToCheck = std::get<0>(it);
+			if(nViewNumToCheck == nViewNumber)
 			{
 				bSameViewNumExist = true;
 				break;
@@ -813,10 +842,11 @@ bool CStandardizedLogger::TryGetImgPath(const CString& strProductId, const int n
 
 	else
 	{
-		const std::vector<std::pair<int, CString>>& vctViewImgPath = findProductImgPath->second;
-		for(const std::pair<int, CString>& it : vctViewImgPath)
+		const std::vector<std::pair<int, CString>>& vctViewImgPath = findProductImgPath->second.second; 
+		for(const auto& it : vctViewImgPath)
 		{
-			if(it.first == nViewNumber)
+			const int nViewNumberToCheck = it.first;
+			if(nViewNumberToCheck == nViewNumber)
 			{
 				strImgPath = it.second;
 				return true;
@@ -877,50 +907,12 @@ void CStandardizedLogger::RegisterProductId(const CString& strID)
 		CTimeSpan timeDiff = curTime - m_tmResetTime;
 		if(timeDiff.GetTotalHours() >= 24)
 		{
+			m_tmResetTime = CTime(curTime.GetYear(), curTime.GetMonth(), curTime.GetDay(), 6, 0, 0);
+			m_tableProductIdx.clear();
 			m_nProductIndex = 0;
 		}
-
-		m_tableProductIdx.emplace(strID, m_nProductIndex);
-	}
-
-	if(m_tableProductIdx.size() > MAXIMUM_TABLE_SIZE)
-	{
-		std::vector<int> vctProductCount {};
-		vctProductCount.reserve(MAXIMUM_TABLE_SIZE + 10);
-		for(auto it = m_tableProductIdx.begin(); it != m_tableProductIdx.end(); it++)
-			vctProductCount.push_back(it->second);
-
-		std::sort(std::begin(vctProductCount), std::end(vctProductCount));
-		std::vector<int> vctRemoveTarget(std::begin(vctProductCount), std::begin(vctProductCount) + MAXIMUM_TABLE_SIZE / 2);
-
-		for(auto it = m_tableProductIdx.begin(); it != m_tableProductIdx.end();)
-		{
-			auto findComp = [it](const int nValue)
-			{
-				const int nCompValue = it->second;
-				if(nCompValue == nValue)
-					return true;
-
-				else
-					return false;
-			};
-
-			auto findCompValue = std::find_if(std::begin(vctRemoveTarget), std::end(vctRemoveTarget), findComp);
-			if(findCompValue != std::end(vctRemoveTarget))
-			{
-				{
-					CSingleLock imagePathTableLock(&m_csImagePathTableLock, TRUE);
-					auto findFromImgPath = m_tableImgPath.find(it->first);
-					if(findFromImgPath != end(m_tableImgPath))
-						m_tableImgPath.erase(findFromImgPath);
-				}
 		
-				it = m_tableProductIdx.erase(it);
-			}
-
-			else
-				++it;
-		}
+		m_tableProductIdx.emplace(strID, m_nProductIndex);
 	}
 }
 

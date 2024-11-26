@@ -17,6 +17,7 @@
 #include <string>
 #include <unordered_map>
 #include <algorithm>
+#include <tuple>
 
 #pragma comment(lib, "Shlwapi.lib")
 
@@ -579,6 +580,7 @@ public:
 
 	void RegisterProductId(const CString& strID);
 
+
 	void WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, CString strContent, ...);
 
 	void WriteProcessLogWithCount(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const int nBarcodeCount, const CString strProductID, CString strContent, ...);
@@ -600,6 +602,8 @@ private:
 	CStandardizedLogger();
 
 	bool init();
+
+	bool ClearProductTable();
 
 	static std::vector<std::string> Split(const std::string& str, const char delimiter);
 
@@ -637,9 +641,9 @@ private:
 
 	std::queue<std::shared_ptr<IStandardLogData>> m_queLogData;
 
-	std::unordered_map<CString, std::pair<int, CTime>, CStringHash, CStringEqual> m_tableProductIdx;
+	std::unordered_map<CString, int, CStringHash, CStringEqual> m_tableProductIdx;
 
-	std::unordered_map<CString, std::vector<std::pair<int, CString>>, CStringHash, CStringEqual> m_tableImgPath;
+	std::unordered_map<CString, std::pair<CTime,std::vector<std::pair<int, CString>>>, CStringHash, CStringEqual> m_tableImgPath;
 
 	int m_nProductIndex;
 
@@ -659,7 +663,7 @@ private:
 
 	CTime m_tmResetTime;
 
-	constexpr static size_t MAXIMUM_TABLE_SIZE = 400;
+	constexpr static size_t MAXIMUM_TABLE_SIZE = 4000;
 
 	static std::shared_ptr<CStandardizedLogger> s_pInstance;
 
