@@ -23,6 +23,22 @@
 
 #define LIGHT_CONTROLLER_PORT_OPEN_FAIL _T("Light Controller_Port Open Fail")
 
+#define LIGHT_CONTROLLER_RETURN_FAIL _T("Light Controller_Return Fail")
+
+#define PLC_INITIALIZATION_FAIL _T("Plc_Initialization Fail")
+
+#define PLC_DISCONNECTED _T("Plc_Disconnected")
+
+#define PLC_READ_TIMEOUT ("Plc_Read Timeout")
+
+#define PLC_READ_TIMEOUT ("Plc_Write Timeout")
+
+#define PLC_RECIPE_NUM_ERROR ("Plc_Recipe No Error")
+
+#define PLC_STEP_NUM_ERROR ("Plc_Step No Error")
+
+#define PLC_SERIAL_NUM_ERROR ("Plc_Step No Error")
+
 #define _3D_PROFILER_INITIALIZATION_FAIL _T("3D Profiler_Intialization Fail")
 
 #define SYNC_OUT _T("[S-O]")
@@ -34,6 +50,14 @@
 #define INTERFACE_OUT _T("[I-O]")
 
 #define READ_BARCODE _T("Cetr,Rd Barcode ID")
+
+
+#define CAMERA_GRAB_FAIL(t1) ([](const int& nCamNum) { CString str; str.Format(_T("Camera %d_Grab Fail"), nCamNum); return str; })(t1)
+
+#define CAMERA_GRAB_TIMEOUT(t1) ([](const int& nCamNum) { CString str; str.Format(_T("Camera %d_Grab Timeout"), nCamNum); return str; })(t1)
+
+#define CAMERA_INIT_FAIL(t1) ([](const int& nCamNum) { CString str; str.Format(_T("Camera %d_Initialization Fail"), nCamNum); return str; })(t1)
+
 
 #define READ_BARCODE_WITH_ID(t1) ([](const CString& strId) { CString str; str.Format(_T("Cetr,Rd Barcode ID %s"), strId); return str; })(t1)
 
