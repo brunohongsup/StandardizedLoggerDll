@@ -56,13 +56,27 @@ void CStandardizedLogger::WriteMainLoopEnd(const CString& strProductId, const in
 {
 	CString strMainLoopEnd;
 	strMainLoopEnd.AppendFormat(_T("%s,[MLE]"), m_strVisionSystemMinorName);
-	WriteProcessLogWithRecentCellInfo(EProcessLogThread::MainThread, nMainThreadIdx, strProductId, strMainLoopEnd);
+	writeProcessLogWithRecentCellInfo(EProcessLogThread::MainThread, nMainThreadIdx, strProductId, strMainLoopEnd);
+	bool IsFirstLoopAfterProgramOn = m_bIsFirstLoopAfterProgramOn.load();
+	if(IsFirstLoopAfterProgramOn)
+	{
+		WriteAlarmLog(strProductId, LOOP_FIRST_CELL_AFTER_PROGRAM_ON);
+		m_bIsFirstLoopAfterProgramOn.store(false);
+	}
+
+	bool IsFirstLoopAfterAlarm = m_bIsFirstLoopAfterAlarm.load();
+	if(IsFirstLoopAfterAlarm)
+	{
+		WriteAlarmLog(strProductId, LOOP_FIRST_CELL_AFTER_LAST_ALARM(_T("LAST ALARM")));
+		m_bIsFirstLoopAfterAlarm.store(false);
+	}
+
 }
 
 UINT CStandardizedLogger::saveLogThreading(LPVOID pParam)
 {
 	auto* pInstance = (CStandardizedLogger*)pParam;
-	while(pInstance->m_bThreadRunning)
+	while(pInstance->m_bThreadRunning.load())
 	{
 		auto& queueLogData = pInstance->m_queLogData;
 		bool bIsQueueEmpty = false;
@@ -101,14 +115,12 @@ UINT CStandardizedLogger::saveLogThreading(LPVOID pParam)
 
 void CStandardizedLogger::startSaveStandardLogThread()
 {
-	m_bThreadRunning = true;
-	m_hThreadTerminatedEvent = CreateEvent(NULL, TRUE, FALSE, _T("StandardLog Save Thread Terminated"));
-	m_pSaveStandardLogThread = AfxBeginThread(saveLogThreading, this);
+	
 }
 
 void CStandardizedLogger::stopSaveStandardLogThread()
 {
-	m_bThreadRunning = false;
+	m_bThreadRunning.store(false);
 }
 
 void CStandardizedLogger::formatProcessLog(const std::shared_ptr<SProcessLogData>& pProcessLogData, EPreTag ePreTag, EPostTag ePostTag)
@@ -252,7 +264,7 @@ bool CStandardizedLogger::init()
 						}
 						else
 						{
-							//ToDo Recent Product Info File Format Wrong
+							WriteAlarmLog(NULL_ID, RECENT_PRODUCT_INFO_FILE_FORMAT_WRONG);
 						}
 						
 					}
@@ -262,14 +274,47 @@ bool CStandardizedLogger::init()
 				}
 			}
 
+			m_bIsFirstLoopAfterProgramOn.store(true);
+			m_bIsFirstLoopAfterAlarm.store(false);
+
 		}
 		while(false);
 
-		startSaveStandardLogThread();
+		m_hThreadTerminatedEvent = CreateEvent(NULL, TRUE, FALSE, _T("StandardLog Save Thread Terminated"));
+		m_bThreadRunning.store(true);
+		m_pSaveStandardLogThread = AfxBeginThread(saveLogThreading, this);
 	}
 	while(false);
 
 	return bRet;
+}
+
+void CStandardizedLogger::ClearImgPathTable()
+{
+	std::vector<std::pair<CString, CTime>> vctIdTime {};
+	vctIdTime.reserve(MAXIMUM_TABLE_SIZE + 10);
+	for(auto it : m_tableImgPath)
+	{
+		CString strProductId = it.first;
+		CTime tmProduct = it.second.first;
+		vctIdTime.emplace_back(std::make_pair(strProductId, tmProduct));
+	}
+
+	auto sortByTimeStamp = [](const std::pair<CString, CTime>& op1, const std::pair<CString, CTime>& op2)
+	{
+		return op1.second < op2.second;
+	};
+
+	std::sort(std::begin(vctIdTime), std::end(vctIdTime), sortByTimeStamp);
+	const size_t nEraseCount = MAXIMUM_TABLE_SIZE / 2;
+	for(size_t i = 0; i < nEraseCount; i++)
+	{
+		const std::pair<CString, CTime>& oldData = vctIdTime[i];
+		auto findImgPath = m_tableImgPath.find(oldData.first);
+		if(findImgPath != std::end(m_tableImgPath))
+			m_tableImgPath.erase(findImgPath);
+
+	}
 }
 
 std::vector<std::string> CStandardizedLogger::Split(const std::string & str, const char delimiter)
@@ -286,7 +331,7 @@ std::vector<std::string> CStandardizedLogger::Split(const std::string & str, con
 	return vctTokens;
 }
 
-void CStandardizedLogger::WriteProcessLogWithRecentCellInfo(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, CString strContent, ...)
+void CStandardizedLogger::writeProcessLogWithRecentCellInfo(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, CString strContent, ...)
 {
 	auto pLogData = std::make_shared<SProcessLogData>();
 	writeProcessLogInternal(pLogData, eLogThread, nThreadIdx, strProductID);
@@ -408,6 +453,7 @@ void CStandardizedLogger::WriteAlarmLog(const CString& strProductId, const CStri
 	strLogPath.AppendFormat(getLogFilePath(curTime, ESystemName::Minor, ELogFileType::AlarmLog));
 	pushLogData(pLogData);
 	pushListLog(curTime, strThreadName);
+	m_bIsFirstLoopAfterAlarm.store(true);
 }
 
 void CStandardizedLogger::WriteResultLog(const CString& strProductId, const int nViewNumber, bool bInspResult)
@@ -425,12 +471,37 @@ void CStandardizedLogger::WriteResultLog(const CString& strProductId, const int 
 	bool bTryGetResult = TryGetImgPath(strProductId, nViewNumber, strImgPath);
 	if(!bTryGetResult)
 	{
-		WriteAlarmLog(strProductId, _T("IMG PATH NOT GIVEN"));
-		//ToDo - Alarm Dialog
+		WriteAlarmLog(strProductId, IMG_PATH_NOT_GIVEN);
 	}
 
-	//ToDo - in the case of PATH NOT GIVEN - Error Shoul Be Also Written In Alarm Log
-	writeResultLogInternal(strProductId, strProductId, eResultVal, strImgPath);
+	else
+	{
+		writeResultLogInternal(strProductId, strProductId, eResultVal, strImgPath);
+	}
+}
+
+void CStandardizedLogger::WriteResultLogEx(const CString & strProductId, const int nViewNumber, bool bInspResult, const int nExId)
+{
+	CString strImgPath {};
+	strImgPath.GetBuffer(100);
+	strImgPath.ReleaseBuffer();
+	StandardizedLogging::EResultValue eResultVal {};
+	if(bInspResult)
+		eResultVal = StandardizedLogging::EResultValue::OK;
+
+	else
+		eResultVal = StandardizedLogging::EResultValue::NG;
+
+	bool bTryGetResult = TryGetImgPathEx(strProductId, nViewNumber, strImgPath, nExId);
+	if(!bTryGetResult)
+	{
+		WriteAlarmLog(strProductId, IMG_PATH_NOT_GIVEN);
+	}
+
+	else
+	{
+		writeResultLogInternal(strProductId, strProductId, eResultVal, strImgPath);
+	}
 }
 
 void CStandardizedLogger::WriteResultLogWithValues(const CString & strProductId, const int nViewNumber, bool bInspResult, const std::vector<CString>& vctValues)
@@ -448,12 +519,35 @@ void CStandardizedLogger::WriteResultLogWithValues(const CString & strProductId,
 	bool bTryGetResult = TryGetImgPath(strProductId, nViewNumber, strImgPath);
 	if(!bTryGetResult)
 	{
-		WriteAlarmLog(strProductId, _T("IMG PATH NOT GIVEN"));
-		//ToDo - Alarm Dialog
+		WriteAlarmLog(strProductId, IMG_PATH_NOT_GIVEN);
 	}
+	else
+	{
+		writeResultLogInternal(strProductId, strProductId, eResultVal, strImgPath, vctValues);
+	}
+}
 
-	//ToDo - in the case of PATH NOT GIVEN - Error Shoul Be Also Written In Alarm Log
-	writeResultLogInternal(strProductId, strProductId, eResultVal, strImgPath, vctValues);
+void CStandardizedLogger::WriteResultLogWithValuesEx(const CString & strProductId, const int nViewNumber, bool bInspResult, const std::vector<CString>& vctValues, const int nExId)
+{
+	CString strImgPath {};
+	strImgPath.GetBuffer(100);
+	strImgPath.ReleaseBuffer();
+	StandardizedLogging::EResultValue eResultVal {};
+	if(bInspResult)
+		eResultVal = StandardizedLogging::EResultValue::OK;
+
+	else
+		eResultVal = StandardizedLogging::EResultValue::NG;
+
+	bool bTryGetResult = TryGetImgPathEx(strProductId, nViewNumber, strImgPath, nExId);
+	if(!bTryGetResult)
+	{
+		WriteAlarmLog(strProductId, IMG_PATH_NOT_GIVEN);
+	}
+	else
+	{
+		writeResultLogInternal(strProductId, strProductId, eResultVal, strImgPath, vctValues);
+	}
 }
 
 void CStandardizedLogger::writeResultLogInternal(const CString& strModuleId, const CString& strCellId, const StandardizedLogging::EResultValue eResultValue, const CString& strImgPath, const std::vector<CString>& vctLogs)
@@ -556,7 +650,7 @@ CString CStandardizedLogger::getSystemName(const ESystemName eSystem) const
 
 void CStandardizedLogger::Clear()
 {
-	m_bThreadRunning = false;
+	m_bThreadRunning.store(false);
 	const DWORD dwThreeSecondsInMil = 3000;
 	WaitForSingleObject(m_hThreadTerminatedEvent, dwThreeSecondsInMil);
 	CSingleLock lock(&m_csLogQueue, TRUE);
@@ -576,6 +670,8 @@ CStandardizedLogger::CStandardizedLogger()
 	, m_strVisionSystemMajorName(CString { _T("MajorNameNotSet") })
 	, m_bCanWriteToDDrive(false)
 	, m_nProductIndex(0)
+	, m_bIsFirstLoopAfterProgramOn(true)
+	, m_bIsFirstLoopAfterAlarm(false)
 {
 
 }
@@ -772,6 +868,42 @@ std::vector<CString> CStandardizedLogger::SplitCString(const CString& strInput, 
 	return vctResult;
 }
 
+bool CStandardizedLogger::AddProductImgPathEx(const CString & strProductId, const int nViewNumber, const CString & strImgPath, const int nExFlag)
+{
+	bool bAddRet = AddProductImgPath(strProductId, nViewNumber, strImgPath);
+	if(bAddRet)
+	{
+		auto lookUp = m_tableImgPath.find(strProductId);
+		if(lookUp != std::end(m_tableImgPath))
+		{
+			std::vector<std::tuple<CString, int, int>>& vctImgPath = lookUp->second.second;
+			auto findImgPath = [nViewNumber, nExFlag](const std::tuple<CString, int, int>& op)
+			{
+				if(std::get<1>(op) == nViewNumber && std::get<2>(op) == -1)
+					return true;
+
+				else
+					return false;
+			};
+
+			auto findTarget = std::find_if(std::begin(vctImgPath), std::end(vctImgPath), findImgPath);
+			if(findTarget != std::end(vctImgPath))
+			{
+				vctImgPath.erase(findTarget);
+				vctImgPath.emplace_back(std::make_tuple(strImgPath, nViewNumber, nExFlag));
+			}
+
+			else
+			{
+				WriteAlarmLog(strProductId, _T("ADD IMG PATH VIEW NUM EX FLAG LOOKUP ERROR"));
+				bAddRet = false;
+			}
+		}
+	}
+
+	return bAddRet;
+}
+
 bool CStandardizedLogger::AddProductImgPath(const CString& strProductId, const int nViewNumber, const CString & strImgPath)
 {
 	CSingleLock lock(&m_csImagePathTableLock, TRUE);
@@ -779,59 +911,34 @@ bool CStandardizedLogger::AddProductImgPath(const CString& strProductId, const i
 	if(lookUp == std::end(m_tableImgPath))
 	{
 		if(m_tableImgPath.size() > MAXIMUM_TABLE_SIZE)
-		{
-			std::vector<std::pair<CString, CTime>> vctPathTime{};
-			vctPathTime.reserve(MAXIMUM_TABLE_SIZE + 10);
-			for(auto it : m_tableImgPath)
-			{
-				CString strProductId = it.first;
-				CTime tmProduct = it.second.first;
-				vctPathTime.emplace_back(std::make_pair(strProductId, tmProduct));
-			}
+			ClearImgPathTable();
 
-			auto sortByTimeSpanInDescendingOrder = [](const std::pair<CString, CTime>& op1, const std::pair<CString, CTime>& op2)
-			{
-				return op1.second < op2.second;
-			};
-
-			std::sort(std::begin(vctPathTime), std::end(vctPathTime), sortByTimeSpanInDescendingOrder);
-			const size_t nEraseCount = vctPathTime.size() / 2;
-			for(size_t i = 0; i < nEraseCount; i++)
-			{
-				const std::pair<CString, CTime>& oldData = vctPathTime[i]; 
-				auto findImgPath = m_tableImgPath.find(oldData.first);
-				if(findImgPath != std::end(m_tableImgPath))
-					m_tableImgPath.erase(findImgPath);
-				
-			}
-		}
-
-		std::vector<std::pair<int, CString>> vctImgPath{};
+		std::vector<std::tuple<CString, int, int>> vctImgPath{};
 		vctImgPath.reserve(10);
 		CTime curTime = CTime::GetCurrentTime();
-		vctImgPath.emplace_back(std::make_pair(nViewNumber, strImgPath));
+		vctImgPath.emplace_back(std::make_tuple(strImgPath, nViewNumber, -1));
 		m_tableImgPath.emplace(strProductId, std::make_pair(curTime, vctImgPath));
 		return true;
 	}
 
 	else
 	{
-		std::pair<CTime, std::vector<std::pair<int, CString>>>& ImgPathTime = lookUp->second;
-		bool bSameViewNumExist = false;
-		std::vector<std::pair<int, CString>>& vctImgPath = ImgPathTime.second;
+		std::pair<CTime, std::vector<std::tuple<CString, int, int>>>& ImgPathTime = lookUp->second;
+		bool bSameImgExist = false;
+		std::vector<std::tuple<CString, int, int>>& vctImgPath = ImgPathTime.second;
 		for(const auto& it : vctImgPath)
 		{
-			const int nViewNumToCheck = std::get<0>(it);
+			const int nViewNumToCheck = std::get<1>(it);
 			if(nViewNumToCheck == nViewNumber)
-			{
-				bSameViewNumExist = true;
+			{	
+				bSameImgExist = true;
 				break;
 			}
 		}
 
-		if(!bSameViewNumExist)
+		if(!bSameImgExist)
 		{
-			vctImgPath.emplace_back(std::make_pair(nViewNumber, strImgPath));
+			vctImgPath.emplace_back(std::make_tuple(strImgPath, nViewNumber, -1));
 			return true;
 		}
 
@@ -841,7 +948,7 @@ bool CStandardizedLogger::AddProductImgPath(const CString& strProductId, const i
 	}
 }
 
-bool CStandardizedLogger::TryGetImgPath(const CString& strProductId, const int nViewNumber, CString& strImgPath)
+bool CStandardizedLogger::TryGetImgPathEx(const CString& strProductId, const int nViewNumber, CString& strImgPath, const int nEx)
 {
 	CSingleLock lock(&m_csImagePathTableLock, TRUE);
 	auto findProductImgPath = m_tableImgPath.find(strProductId);
@@ -850,13 +957,38 @@ bool CStandardizedLogger::TryGetImgPath(const CString& strProductId, const int n
 
 	else
 	{
-		const std::vector<std::pair<int, CString>>& vctViewImgPath = findProductImgPath->second.second; 
+		const std::vector<std::tuple<CString, int, int>>& vctViewImgPath = findProductImgPath->second.second; 
 		for(const auto& it : vctViewImgPath)
 		{
-			const int nViewNumberToCheck = it.first;
+			const int nViewNumberToCheck = std::get<1>(it);
+			const int nExToCheck = std::get<2>(it);
+			if(nViewNumberToCheck == nViewNumber && nExToCheck && nEx)
+			{
+				strImgPath = std::get<0>(it);
+				return true;
+			}
+		}
+
+		return false;
+	}
+}
+
+bool CStandardizedLogger::TryGetImgPath(const CString & strProductId, const int nViewNumber, CString & strImgPath)
+{
+	CSingleLock lock(&m_csImagePathTableLock, TRUE);
+	auto findProductImgPath = m_tableImgPath.find(strProductId);
+	if(findProductImgPath == std::end(m_tableImgPath))
+		return false;
+
+	else
+	{
+		const std::vector<std::tuple<CString, int, int>>& vctViewImgPath = findProductImgPath->second.second;
+		for(const auto& it : vctViewImgPath)
+		{
+			const int nViewNumberToCheck = std::get<1>(it);
 			if(nViewNumberToCheck == nViewNumber)
 			{
-				strImgPath = it.second;
+				strImgPath = std::get<0>(it);
 				return true;
 			}
 		}
@@ -906,7 +1038,10 @@ CString CStandardizedLogger::GetFilePath(const CString& strProductId, const int 
 void CStandardizedLogger::RegisterProductId(const CString& strID)
 {
 	if(strID.GetLength() < 1)
+	{
+		WriteAlarmLog(strID, PLC_SERIAL_NUM_ERROR);
 		return;
+	}
 
 	if(strID.Compare(NULL_ID) == 0)
 		return;
@@ -931,9 +1066,9 @@ void CStandardizedLogger::RegisterProductId(const CString& strID)
 			for(int i = 0; i < nEraseCount; i++)
 			{
 				const std::pair<CString, CTime>& oldData = vctPathTime[i];
-				auto findImgPath = m_tableImgPath.find(oldData.first);
-				if(findImgPath != std::end(m_tableImgPath))
-					m_tableImgPath.erase(findImgPath);
+				auto findImgPath = m_tableProductIdx.find(oldData.first);
+				if(findImgPath != std::end(m_tableProductIdx))
+					m_tableProductIdx.erase(findImgPath);
 			}
 		}
 

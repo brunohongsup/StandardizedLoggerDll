@@ -29,15 +29,69 @@
 
 #define PLC_DISCONNECTED _T("Plc_Disconnected")
 
-#define PLC_READ_TIMEOUT ("Plc_Read Timeout")
+#define PLC_READ_TIMEOUT _T("Plc_Read Timeout")
 
-#define PLC_READ_TIMEOUT ("Plc_Write Timeout")
+#define PLC_WRITE_TIMEOUT _T("Plc_Write Timeout")
 
-#define PLC_RECIPE_NUM_ERROR ("Plc_Recipe No Error")
+#define PLC_RECIPE_NUM_ERROR _T("Plc_Recipe No Error")
 
-#define PLC_STEP_NUM_ERROR ("Plc_Step No Error")
+#define PLC_STEP_NUM_ERROR _T("Plc_Step No Error")
 
-#define PLC_SERIAL_NUM_ERROR ("Plc_Step No Error")
+#define PLC_SERIAL_NUM_ERROR _T("Plc_Serial No Error")
+
+#define PLC_TRIGGER_ERROR _T("Plc_Trigger Error")
+
+#define IMG_PATH_NOT_GIVEN _T("File Img_Path Not Given")
+
+#define PLC_RESULT_ACK_ERROR _T("Plc_Result Ack Error")
+
+#define HDD_CAPACITY_ERROR _T("HDD_Capacity Fail")
+
+#define FILE_PATH_PARSE_ERROR _T("File Path_Parse Error")
+
+#define RECENT_PRODUCT_INFO_FILE_FORMAT_WRONG _T("File Recent_Product_Info Format Wrong")
+
+#define CPU_USAGE_OVERFLOW_ERROR _T("CPU_Usage Overflow Error")
+
+#define RAM_USAGE_OVERFLOW_ERROR _T("RAM_Usage Overflow Error")
+
+#define IMG_SAVE_FAIL _T("Image Save_Fail")
+
+#define IMG_SAVE_TIMEOUT _T("Image Save_Timeout")
+
+#define JSON_SAVE_FAIL _T("Save File_Json Fail")
+
+#define JSON_SAVE_TIME_OUT _T("Save File_Json Timeout")
+
+#define CSV_SAVE_TIME_OUT _T("Save File_Csv Timeout")
+
+#define CSV_SAVE_FAIL _T("Save File_Csv Fail")
+
+#define VISION_PROGRAM_START _T("Vision_Program Start")
+
+#define VISION_PROGRAM_EXIT _T("Vision_Program Exit")
+
+#define VISION_INSPECTION_TIMEOUT_ERROR _T("Vision_Inspection Timeout Error")
+
+#define VISION_INSPECTION_CONTINUOUS_NG _T("Vision_Inspection Continuous Ng")
+
+#define VISION_IMAGE_PROCESSING_FAIL _T("Vision_Image Processing Fail")
+
+#define VISION_MODEL_CHANGE_ERROR _T("Vision_Model Change Error")
+
+#define VISION_ALIGN_RESULT_LIMIT_ERROR _T("Vision_Align Result Limit Error")
+
+#define USER_STOP_BUTTON_CLICKED _T("User_Stop Btn Clicked")
+
+#define USER_RUN_BUTTON_CLICKED _T("User_Run Btn Clicked")
+
+#define USER_EXIT_BUTTON_CLICKED _T("User_Exit Btn Clicked")
+
+#define LOOP_LAST_CELL _T("Loop_Last Cell")
+
+#define LOOP_FIRST_CELL_AFTER_PROGRAM_ON _T("Loop_First Cell After Program On")
+
+#define LOOP_FIRST_CELL_AFTER_LAST_ALARM(t1) ([](const CString& strAlramContent) { CString str; str.Format(_T("Loop_First Cell After %s"), strAlramContent); return str; })(t1)
 
 #define _3D_PROFILER_INITIALIZATION_FAIL _T("3D Profiler_Intialization Fail")
 
@@ -103,13 +157,11 @@
 
 #define SAVE_DATA_INSP_SINGLE(t1) ([](const int nOp1) { CString str; str.Format(_T("Sv Data Insp-%d"), nOp1); return str; })(t1)
 
-
 #define SAVE_DATA_INSP_DOUBLE(t1, t2) ([](const int nOp1, const int nOp2) { CString str; str.Format(_T("Sv Data Insp %d-%d"), nOp1, nOp2); return str; })(t1, t2)
 
 #define SAVE_DATA_INSP _T("Sv Data Insp")
 
 #define PATH_PARSE_ERROR _T("Fail To Parse Img Path")
-
 
 #define SAVE_DATA_SPC_SINGLE(t1) ([](const int nOp1) { CString str; str.Format(_T("Sv Data Spc-%d"), nOp1); return str; })(t1)
 
@@ -578,7 +630,11 @@ public:
 
 	void WriteResultLog(const CString& strProductId, const int nViewNumber, bool bInspResult);
 
+	void WriteResultLogEx(const CString& strProductId, const int nViewNumber, bool bInspResult, const int nExId);
+
 	void WriteResultLogWithValues(const CString& strProductId, const int nViewNumber, bool bInspResult, const std::vector<CString>& vctValues);
+
+	void WriteResultLogWithValuesEx(const CString& strProductId, const int nViewNumber, bool bInspResult, const std::vector<CString>& vctValues, const int nExId);
 
 	void WriteSystemLog(const CString & strProductId, const StandardizedLogging::ESystemLogThread eLogThread, const CString & strLogContent);
 
@@ -604,7 +660,6 @@ public:
 
 	void RegisterProductId(const CString& strID);
 
-
 	void WriteProcessLog(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, CString strContent, ...);
 
 	void WriteProcessLogWithCount(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const int nBarcodeCount, const CString strProductID, CString strContent, ...);
@@ -615,7 +670,11 @@ public:
 
 	static std::vector<CString> SplitCString(const CString& str, const TCHAR delimiter);
 
+	bool AddProductImgPathEx(const CString& strProductId, const int nViewNumber, const CString& strImgPath, const int nExFlag);
+
 	bool AddProductImgPath(const CString& strProductId, const int nViewNumber, const CString& strImgPath);
+
+	bool TryGetImgPathEx(const CString& strProductId, const int nViewNumber, CString& strImgPath, int nExtra);
 
 	bool TryGetImgPath(const CString& strProductId, const int nViewNumber, CString& strImgPath);
 
@@ -627,11 +686,11 @@ private:
 
 	bool init();
 
-	bool ClearProductTable();
+	void ClearImgPathTable();
 
 	static std::vector<std::string> Split(const std::string& str, const char delimiter);
 
-	void WriteProcessLogWithRecentCellInfo(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, CString strContent, ...);
+	void writeProcessLogWithRecentCellInfo(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, CString strContent, ...);
 
 	void writeResultLogInternal(const CString & strModuleId, const CString& strCellId, const StandardizedLogging::EResultValue eResultValue, const CString & strImgPath, const std::vector<CString>& vctLogs = std::vector<CString> {});
 
@@ -667,11 +726,11 @@ private:
 
 	std::unordered_map<CString, std::pair<int,CTime>, CStringHash, CStringEqual> m_tableProductIdx;
 
-	std::unordered_map<CString, std::pair<CTime,std::vector<std::pair<int, CString>>>, CStringHash, CStringEqual> m_tableImgPath;
+	std::unordered_map<CString, std::pair<CTime,std::vector<std::tuple<CString, int, int>>>, CStringHash, CStringEqual> m_tableImgPath;
 
 	int m_nProductIndex;
 
-	std::atomic_bool m_bThreadRunning;
+	std::atomic<bool> m_bThreadRunning;
 
 	CWinThread* m_pSaveStandardLogThread;
 
@@ -692,6 +751,10 @@ private:
 	static std::shared_ptr<CStandardizedLogger> s_pInstance;
 
 	static CCriticalSection s_lockSection;
+
+	std::atomic<bool> m_bIsFirstLoopAfterProgramOn;
+
+	std::atomic<bool> m_bIsFirstLoopAfterAlarm;
 };
 
 
