@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "pch.h"
 #include "StandardizedLogger.h"
 
 CCriticalSection CStandardizedLogger::s_lockSection;
@@ -129,7 +129,7 @@ void CStandardizedLogger::formatProcessLog(const std::shared_ptr<SProcessLogData
 		strAddLog.AppendFormat(_T("%s,"), strPreTag);
 	}
 
-	strAddLog.AppendFormat(_T("%s"), pProcessLogData->strLogData);
+	strAddLog.AppendFormat(_T("%s"), pProcessLogData->strFileData);
 	if(ePostTag != StandardizedLogging::EPostTag::None)
 	{
 		CString strPostTag = GetPostTagString(ePostTag);
@@ -137,7 +137,7 @@ void CStandardizedLogger::formatProcessLog(const std::shared_ptr<SProcessLogData
 	}
 
 	auto& strProcessLogFilePath = pProcessLogData->strFilePath;
-	auto& strLogRow = pProcessLogData->strLogData;
+	auto& strLogRow = pProcessLogData->strFileData;
 	strProcessLogFilePath.AppendFormat(getLogFilePath(pProcessLogData->tmLogTime, ESystemName::Minor, ELogFileType::ProcessLog));
 	strLogRow.Empty();
 	strLogRow.AppendFormat(strAddLog);
@@ -334,7 +334,7 @@ void CStandardizedLogger::writeProcessLogWithRecentCellInfo(const StandardizedLo
 	strResult.AppendFormatV(strContent, args);
 	va_end(args);
 
-	pLogData->strLogData = strResult;
+	pLogData->strFileData = strResult;
 	pLogData->nIndex = getProductIdxFromTable(strProductID);
 	formatProcessLog(pLogData, EPreTag::None, EPostTag::None);
 	pushListLog(pLogData->tmLogTime, pLogData->strThreadName);
@@ -342,7 +342,7 @@ void CStandardizedLogger::writeProcessLogWithRecentCellInfo(const StandardizedLo
 	
 	auto pRecentProductInfo = std::make_shared<SRecentProductInfoData>();
 	auto& tmProductTime = pLogData->tmLogTime;
-	auto& strRecentProductInfo = pRecentProductInfo->strLogData;
+	auto& strRecentProductInfo = pRecentProductInfo->strFileData;
 	strRecentProductInfo.AppendFormat(_T("%04d-%02d-%02d"), tmProductTime.GetYear(), tmProductTime.GetMonth(), tmProductTime.GetDay());
 	strRecentProductInfo.AppendFormat(_T("%010d,"), pLogData->nIndex);
 	strRecentProductInfo.AppendFormat(_T("%s,"), pLogData->strID);
@@ -355,7 +355,7 @@ void CStandardizedLogger::writeSystemLogInternal(const CString & strProductId, c
 	CTime curTime = CTime::GetCurrentTime();
 	CString strLogTime = GetFormattedTime(curTime);
 	const auto pLogData = std::make_shared<SSystemLogData>();
-	auto& strLogContents = pLogData->strLogData;
+	auto& strLogContents = pLogData->strFileData;
 	auto& strLogPath = pLogData->strFilePath;
 	strLogContents.Empty();
 	strLogPath.Empty();
@@ -389,7 +389,7 @@ void CStandardizedLogger::writeSystemLogInternal(const CString & strProductId, c
 void CStandardizedLogger::pushListLog(const CTime& curTime, const CString& strThreadName)
 {
 	const auto pListLogItem = std::make_shared<SListLogData>();
-	auto& strListLogContent = pListLogItem->strLogData;
+	auto& strListLogContent = pListLogItem->strFileData;
 	auto& strListLogPath = pListLogItem->strFilePath;
 	strListLogContent.Empty();
 	strListLogPath.Empty();
@@ -401,7 +401,7 @@ void CStandardizedLogger::pushListLog(const CTime& curTime, const CString& strTh
 void CStandardizedLogger::pushLogData(const std::shared_ptr<IStandardLogData>& pLogData)
 {
 	CSingleLock lock(&m_csLogQueue, TRUE);
-	pLogData->strLogData.AppendFormat(_T("\n"));
+	pLogData->strFileData.AppendFormat(_T("\n"));
 	m_queLogData.push(pLogData);
 }
 
@@ -424,7 +424,7 @@ void CStandardizedLogger::WriteAlarmLog(const CString& strProductId, const CStri
 	CTime curTime = CTime::GetCurrentTime();
 	CString strLogTime = GetFormattedTime(curTime);
 	const auto pLogData = std::make_shared<SAlarmLogData>();
-	auto& strLogContents = pLogData->strLogData;
+	auto& strLogContents = pLogData->strFileData;
 	auto& strLogPath = pLogData->strFilePath;
 	strLogContents.Empty();
 	strLogPath.Empty();
@@ -548,7 +548,7 @@ void CStandardizedLogger::writeResultLogInternal(const CString& strModuleId, con
 	CTime curTime = CTime::GetCurrentTime();
 	CString strLogTime = GetFormattedTime(curTime);
 	const auto pLogData = std::make_shared<SResultLogData>();
-	auto& strLogContents = pLogData->strLogData;
+	auto& strLogContents = pLogData->strFileData;
 	auto& strLogPath = pLogData->strFilePath;
 	strLogContents.Empty();
 	strLogPath.Empty();
@@ -766,7 +766,7 @@ void CStandardizedLogger::WriteProcessLog(const StandardizedLogging::EProcessLog
 	strResult.AppendFormatV(strContent, args);
 	va_end(args);
 
-	pLogData->strLogData = strResult;
+	pLogData->strFileData = strResult;
 	pLogData->nIndex = getProductIdxFromTable(strProductID);
 	formatProcessLog(pLogData, EPreTag::None, EPostTag::None);
 	pushListLog(pLogData->tmLogTime, pLogData->strThreadName);
@@ -783,7 +783,7 @@ void CStandardizedLogger::WriteProcessLogWithCount(const StandardizedLogging::EP
 	strResult.FormatV(strContent, args);
 	va_end(args);
 
-	pLogData->strLogData = strResult;
+	pLogData->strFileData = strResult;
 	pLogData->nIndex = nBarcodeCount;
 	formatProcessLog(pLogData, EPreTag::None, EPostTag::None);
 	pushListLog(pLogData->tmLogTime, pLogData->strThreadName);
@@ -809,7 +809,7 @@ void CStandardizedLogger::WriteProcessLogPreTag(const StandardizedLogging::EProc
 
 	va_end(args);
 
-	pLogData->strLogData = strResult;
+	pLogData->strFileData = strResult;
 	pLogData->ePreTag = ePreTag;
 	pLogData->nIndex = getProductIdxFromTable(strProductID);
 	formatProcessLog(pLogData, ePreTag, EPostTag::None);
@@ -836,7 +836,7 @@ void CStandardizedLogger::WriteProcessLogDoubleTags(const StandardizedLogging::E
 
 	va_end(args);
 
-	pLogData->strLogData = strResult;
+	pLogData->strFileData = strResult;
 	pLogData->ePreTag = ePreTag;
 	pLogData->ePostTag = ePostTag;
 	pLogData->nIndex = getProductIdxFromTable(strProductID);
@@ -1111,7 +1111,7 @@ bool CStandardizedLogger::SLogData::WriteToFile()
 
 	SetFilePointer(hFile, 0, NULL, FILE_END);
 	DWORD dwByesWritten {};
-	buffer = strLogData.GetBuffer();
+	buffer = strFileData.GetBuffer();
 	const int nUtf8Len = WideCharToMultiByte(CP_UTF8, 0, buffer, -1, NULL, 0, NULL, NULL);
 	std::string strWrite;
 	strWrite.reserve(nUtf8Len);
@@ -1119,7 +1119,7 @@ bool CStandardizedLogger::SLogData::WriteToFile()
 	WideCharToMultiByte(CP_UTF8, 0, buffer, -1, &strWrite[0], nUtf8Len, NULL, NULL);
 	BOOL bWriteResult = WriteFile(hFile, &strWrite[0], dwBytesToWrite, &dwByesWritten, NULL);
 	CloseHandle(hFile);
-	strLogData.ReleaseBuffer();
+	strFileData.ReleaseBuffer();
 
 	if(TRUE == bWriteResult && dwBytesToWrite == dwByesWritten)
 		return true;
@@ -1131,7 +1131,7 @@ bool CStandardizedLogger::SLogData::WriteToFile()
 bool CStandardizedLogger::SListLogData::SaveToFile()
 {
 	auto& strFilePath = this->strFilePath;
-	auto& strLogContents = this->strLogData;
+	auto& strLogContents = this->strFileData;
 	if(PathFileExists(strFilePath))
 	{
 		CFile file;
@@ -1272,7 +1272,7 @@ bool CStandardizedLogger::SRecentProductInfoData::SaveToFile()
 		return false;
 
 	DWORD dwByesWritten {};
-	buffer = strLogData.GetBuffer();
+	buffer = strFileData.GetBuffer();
 	const int nUtf8Len = WideCharToMultiByte(CP_UTF8, 0, buffer, -1, NULL, 0, NULL, NULL);
 	std::string strWrite;
 	strWrite.reserve(nUtf8Len);
@@ -1280,7 +1280,7 @@ bool CStandardizedLogger::SRecentProductInfoData::SaveToFile()
 	WideCharToMultiByte(CP_UTF8, 0, buffer, -1, &strWrite[0], nUtf8Len, NULL, NULL);
 	BOOL bWriteResult = WriteFile(hFile, &strWrite[0], dwBytesToWrite, &dwByesWritten, NULL);
 	CloseHandle(hFile);
-	strLogData.ReleaseBuffer();
+	strFileData.ReleaseBuffer();
 
 	if(TRUE == bWriteResult && dwBytesToWrite == dwByesWritten)
 		return true;

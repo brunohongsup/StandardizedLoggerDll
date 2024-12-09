@@ -550,14 +550,20 @@ public:
 
 	};
 
+	struct IFileData 
+	{
+
+	};
+
 	struct IStandardLogData
 	{
-		CString strLogData;
+		CString strFileData;
 
 		CString strFilePath = _T("");
 
 		virtual bool SaveToFile() = 0;
 	};
+
 
 	struct SRecentProductInfoData : IStandardLogData
 	{
@@ -578,8 +584,8 @@ public:
 
 		SLogData()
 		{
-			strLogData.GetBuffer(100);
-			strLogData.ReleaseBuffer();
+			strFileData.GetBuffer(100);
+			strFileData.ReleaseBuffer();
 		}
 	};
 
