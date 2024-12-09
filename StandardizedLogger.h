@@ -552,11 +552,6 @@ public:
 
 	struct IFileData 
 	{
-
-	};
-
-	struct IStandardLogData
-	{
 		CString strFileData;
 
 		CString strFilePath = _T("");
@@ -564,13 +559,27 @@ public:
 		virtual bool SaveToFile() = 0;
 	};
 
-
-	struct SRecentProductInfoData : IStandardLogData
+	struct SFileData : IFileData
 	{
 		bool SaveToFile() override;
 	};
 
-	struct SLogData : IStandardLogData
+	struct SRosHistoryData : SFileData
+	{
+		
+	};
+
+	struct SStandardLogData : IFileData
+	{
+		
+	};
+
+	struct SRecentProductInfoData : SStandardLogData
+	{
+		bool SaveToFile() override;
+	};
+
+	struct SLogData : SStandardLogData
 	{
 		int nIndex = 0;
 
@@ -714,7 +723,7 @@ private:
 
 	void pushListLog(const CTime& curTime, const CString& strThreadName);
 
-	void pushLogData(const std::shared_ptr<IStandardLogData>& pLogData);
+	void pushLogData(const std::shared_ptr<IFileData>& pLogData);
 
 	int getProductIdxFromTable(const CString& strProductId);
 
@@ -724,7 +733,7 @@ private:
 
 	CCriticalSection m_csImagePathTableLock;
 
-	std::queue<std::shared_ptr<IStandardLogData>> m_queLogData;
+	std::queue<std::shared_ptr<IFileData>> m_queLogData;
 
 	std::unordered_map<CString, std::pair<int,CTime>, CStringHash, CStringEqual> m_tableProductIdx;
 
