@@ -1,4 +1,4 @@
-#include "pch.h"
+#include "stdafx.h"
 #include "StandardizedLogger.h"
 
 CCriticalSection CStandardizedLogger::s_lockSection;
@@ -98,24 +98,16 @@ UINT CStandardizedLogger::saveLogThreading(LPVOID pParam)
 			queueLogData.pop();
 		}
 
-		bool bSaveResult = false;
-		do
+		bool bSaveResult = pLogData->SaveToFile();
+		if(!bSaveResult)
 		{
-			bSaveResult = pLogData->SaveToFile();
-			if(!bSaveResult)
-				Sleep(2);
+			//ToDo Alarm Fail To Save StandardLog 
 		}
-		while(!bSaveResult);
 		Sleep(3);
 	}
 
 	SetEvent(pInstance->m_hThreadTerminatedEvent);
 	return 0;
-}
-
-void CStandardizedLogger::startSaveStandardLogThread()
-{
-	
 }
 
 void CStandardizedLogger::stopSaveStandardLogThread()
@@ -354,6 +346,7 @@ void CStandardizedLogger::writeProcessLogWithRecentCellInfo(const StandardizedLo
 	strRecentProductInfo.AppendFormat(_T("%04d-%02d-%02d"), tmProductTime.GetYear(), tmProductTime.GetMonth(), tmProductTime.GetDay());
 	strRecentProductInfo.AppendFormat(_T("%010d,"), pLogData->nIndex);
 	strRecentProductInfo.AppendFormat(_T("%s,"), pLogData->strID);
+	pRecentProductInfo->strFilePath = getLogFilePath(pLogData->tmLogTime, ESystemName::Minor, StandardizedLogging::ELogFileType::RecentProductInfo);
 	pushLogData(pRecentProductInfo);
 }
 
@@ -973,7 +966,7 @@ bool CStandardizedLogger::TryGetImgPathEx(const CString& strProductId, const int
 	}
 }
 
-bool CStandardizedLogger::TryGetImgPath(const CString & strProductId, const int nViewNumber, CString & strImgPath)
+bool CStandardizedLogger::TryGetImgPath(const CString& strProductId, const int nViewNumber, CString& strImgPath)
 {
 	CSingleLock lock(&m_csImagePathTableLock, TRUE);
 	auto findProductImgPath = m_tableImgPath.find(strProductId);
@@ -1039,7 +1032,7 @@ void CStandardizedLogger::RegisterProductId(const CString& strID)
 {
 	if(strID.GetLength() < 1)
 	{
-		WriteAlarmLog(strID, PLC_SERIAL_NUM_ERROR);
+		WriteAlarmLog(NULL_ID, PLC_SERIAL_NUM_ERROR);
 		return;
 	}
 
@@ -1133,15 +1126,6 @@ bool CStandardizedLogger::SLogData::WriteToFile()
 
 	else
 		return false;
-}
-
-bool CStandardizedLogger::SLogData::operator<(const SLogData& sValue) const
-{
-	if(nIndex == sValue.nIndex)
-		return false;
-
-	else
-		return nIndex < sValue.nIndex;
 }
 
 bool CStandardizedLogger::SListLogData::SaveToFile()

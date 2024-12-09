@@ -576,8 +576,6 @@ public:
 
 		bool WriteToFile();
 
-		bool operator<(const SLogData& sValue) const;
-
 		SLogData()
 		{
 			strLogData.GetBuffer(100);
@@ -695,8 +693,6 @@ private:
 	void writeResultLogInternal(const CString & strModuleId, const CString& strCellId, const StandardizedLogging::EResultValue eResultValue, const CString & strImgPath, const std::vector<CString>& vctLogs = std::vector<CString> {});
 
 	void writeSystemLogInternal(const CString & strProductId, const StandardizedLogging::ESystemLogThread eLogThread, const CString & strLogContent, const StandardizedLogging::EPreTag ePreTag, const StandardizedLogging::EPostTag ePostTag);
-
-	void startSaveStandardLogThread();
 
 	void stopSaveStandardLogThread();
 
