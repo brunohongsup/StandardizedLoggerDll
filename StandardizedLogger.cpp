@@ -1,4 +1,4 @@
-#include "pch.h"
+#include "stdafx.h"
 #include "StandardizedLogger.h"
 
 CCriticalSection CStandardizedLogger::s_lockSection;
@@ -91,7 +91,7 @@ UINT CStandardizedLogger::saveLogThreading(LPVOID pParam)
 			continue;
 		}
 
-		std::shared_ptr<IStandardLogData> pLogData{};
+		std::shared_ptr<IFileData> pLogData{};
 		{
 			CSingleLock lock(&pInstance->m_csLogQueue, TRUE);
 			pLogData = queueLogData.front();
@@ -101,7 +101,7 @@ UINT CStandardizedLogger::saveLogThreading(LPVOID pParam)
 		bool bSaveResult = pLogData->SaveToFile();
 		if(!bSaveResult)
 		{
-			//ToDo Alarm Fail To Save StandardLog 
+			//ToDo Alarm Fail To Save StandardLog
 		}
 		Sleep(3);
 	}
@@ -398,7 +398,7 @@ void CStandardizedLogger::pushListLog(const CTime& curTime, const CString& strTh
 	pushLogData(pListLogItem);
 }
 
-void CStandardizedLogger::pushLogData(const std::shared_ptr<IStandardLogData>& pLogData)
+void CStandardizedLogger::pushLogData(const std::shared_ptr<IFileData>& pLogData)
 {
 	CSingleLock lock(&m_csLogQueue, TRUE);
 	pLogData->strFileData.AppendFormat(_T("\n"));
@@ -907,7 +907,7 @@ bool CStandardizedLogger::AddProductImgPath(const CString& strProductId, const i
 			ClearImgPathTable();
 
 		std::vector<std::tuple<CString, int, int>> vctImgPath{};
-		vctImgPath.reserve(10);
+		vctImgPath.reserve(15);
 		CTime curTime = CTime::GetCurrentTime();
 		vctImgPath.emplace_back(std::make_tuple(strImgPath, nViewNumber, -1));
 		m_tableImgPath.emplace(strProductId, std::make_pair(curTime, vctImgPath));
@@ -1321,4 +1321,50 @@ CString StandardizedLogging::SLogFileType::ToString()
 		return _T("LOG FILE TYPE NOT DEFINED");
 		break;
 	}
+}
+
+bool CStandardizedLogger::SFileData::SaveToFile()
+{
+	CString strDirPath;
+	strDirPath = strFilePath;
+	LPTSTR buffer = strDirPath.GetBuffer();
+	PathRemoveFileSpec(buffer);
+	strDirPath.ReleaseBuffer();
+	if(!PathFileExists(strDirPath))
+	{
+		BOOL ret = CreateDirectoryRecursive(strDirPath);
+		if(!ret)
+		{
+			DWORD dwError = GetLastError();
+			CString strMsg;
+			strMsg.Format(_T("[StandardizedLog] Failed To Make Directory Path. Error Code : %d"), dwError);
+			return false;
+		}
+	}
+
+	HANDLE hFile = CreateFile(
+		strFilePath,
+		GENERIC_WRITE,
+		0,
+		NULL,
+		CREATE_ALWAYS,
+		FILE_ATTRIBUTE_NORMAL,
+		NULL
+	);
+
+	if(hFile == INVALID_HANDLE_VALUE)
+		return false;
+
+	DWORD dwByesWritten {};
+	buffer = strFileData.GetBuffer();
+	DWORD dwBytesToWrite = sizeof(TCHAR) * strFileData.GetLength();
+	BOOL bWriteResult = WriteFile(hFile, buffer, dwBytesToWrite, &dwByesWritten, NULL);
+	CloseHandle(hFile);
+	strFileData.ReleaseBuffer();
+
+	if(TRUE == bWriteResult && dwBytesToWrite == dwByesWritten)
+		return true;
+
+	else
+		return false;
 }

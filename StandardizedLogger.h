@@ -133,6 +133,8 @@
 
 #define CAM_GRAB_SINGLE(t1) ([](const int nCam) { CString str; str.Format(_T("Cam,Grb-%d"), nCam); return str; })(t1)
 
+#define CAM_LIVE_SINGLE(t1) ([](const int nCam) { CString str; str.Format(_T("Cam,Live-%d"), nCam); return str; })(t1)
+
 #define SAVE_IMAGE_TRIPLE(t1,t2,t3) ([](const int nOp1, const int nOp2, const int nOp3) { CString str; str.Format(_T("Sv Img %d-%d-%d"), nOp1, nOp2, nOp3); return str; })(t1, t2, t3)
 
 #define SAVE_IMAGE_DOUBLE(t1,t2) ([](const int nOp1, const int nOp2){ CString str; str.Format(_T("Sv Img %d-%d"), nOp1, nOp2); return str; })(t1, t2)
@@ -228,6 +230,8 @@
 #define _3DCAMERA_THREAD(t1) ([](const int t) { CString str; str.Format(_T("3DCAM-THREAD-%d"), t); return str; })(t1)
 
 #define SAVE_ETC_THREAD _T("SAVE-ETC")
+
+class CRosSocket;
 
 namespace StandardizedLogging
 {
@@ -463,6 +467,8 @@ struct CStringEqual
 
 class CStandardizedLogger
 {
+	friend class CRosSocket;
+
 public:
 	static std::shared_ptr<CStandardizedLogger> GetInstance();
 
@@ -552,11 +558,6 @@ public:
 
 	struct IFileData 
 	{
-
-	};
-
-	struct IStandardLogData
-	{
 		CString strFileData;
 
 		CString strFilePath = _T("");
@@ -564,13 +565,22 @@ public:
 		virtual bool SaveToFile() = 0;
 	};
 
-
-	struct SRecentProductInfoData : IStandardLogData
+	struct SFileData : IFileData
 	{
 		bool SaveToFile() override;
 	};
 
-	struct SLogData : IStandardLogData
+	struct SStandardLogData : SFileData
+	{
+		
+	};
+
+	struct SRecentProductInfoData : SStandardLogData
+	{
+		bool SaveToFile() override;
+	};
+
+	struct SLogData : SStandardLogData
 	{
 		int nIndex = 0;
 
@@ -634,6 +644,10 @@ public:
 
 	void WriteResultLog(const CString& strProductId, const int nViewNumber, bool bInspResult);
 
+	void WriteResultLogWithFinalResult(const CString& strProductId, bool bFinalResult);
+
+	void AddResultLogToTable(const CString& strProductId, const int nViewNumber, bool bInsp);
+
 	void WriteResultLogEx(const CString& strProductId, const int nViewNumber, bool bInspResult, const int nExId);
 
 	void WriteResultLogWithValues(const CString& strProductId, const int nViewNumber, bool bInspResult, const std::vector<CString>& vctValues);
@@ -684,6 +698,8 @@ public:
 
 	static CString GetFilePath(const CString& strProductId, const int nCamIdx, const int nImgIdx, bool bIsOk,bool bIsOverlay, EFileExtensionType eFileType);
 
+	
+	
 private:
 
 	CStandardizedLogger();
@@ -714,7 +730,7 @@ private:
 
 	void pushListLog(const CTime& curTime, const CString& strThreadName);
 
-	void pushLogData(const std::shared_ptr<IStandardLogData>& pLogData);
+	void pushLogData(const std::shared_ptr<IFileData>& pLogData);
 
 	int getProductIdxFromTable(const CString& strProductId);
 
@@ -724,7 +740,7 @@ private:
 
 	CCriticalSection m_csImagePathTableLock;
 
-	std::queue<std::shared_ptr<IStandardLogData>> m_queLogData;
+	std::queue<std::shared_ptr<IFileData>> m_queLogData;
 
 	std::unordered_map<CString, std::pair<int,CTime>, CStringHash, CStringEqual> m_tableProductIdx;
 
