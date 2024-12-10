@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "pch.h"
 #include "StandardizedLogger.h"
 
 CCriticalSection CStandardizedLogger::s_lockSection;
@@ -275,38 +275,11 @@ bool CStandardizedLogger::init()
 		m_hThreadTerminatedEvent = CreateEvent(NULL, TRUE, FALSE, _T("StandardLog Save Thread Terminated"));
 		m_bThreadRunning.store(true);
 		m_pSaveStandardLogThread = AfxBeginThread(saveLogThreading, this);
+		m_vctImageNameElements.reserve(IMAGE_NAME_ELEMENT_MAXIMUM_COUNT);
 	}
 	while(false);
 
 	return bRet;
-}
-
-void CStandardizedLogger::ClearImgPathTable()
-{
-	std::vector<std::pair<CString, CTime>> vctIdTime {};
-	vctIdTime.reserve(MAXIMUM_TABLE_SIZE + 10);
-	for(auto it : m_tableImgPath)
-	{
-		CString strProductId = it.first;
-		CTime tmProduct = it.second.first;
-		vctIdTime.emplace_back(std::make_pair(strProductId, tmProduct));
-	}
-
-	auto sortByTimeStamp = [](const std::pair<CString, CTime>& op1, const std::pair<CString, CTime>& op2)
-	{
-		return op1.second < op2.second;
-	};
-
-	std::sort(std::begin(vctIdTime), std::end(vctIdTime), sortByTimeStamp);
-	const size_t nEraseCount = MAXIMUM_TABLE_SIZE / 2;
-	for(size_t i = 0; i < nEraseCount; i++)
-	{
-		const std::pair<CString, CTime>& oldData = vctIdTime[i];
-		auto findImgPath = m_tableImgPath.find(oldData.first);
-		if(findImgPath != std::end(m_tableImgPath))
-			m_tableImgPath.erase(findImgPath);
-
-	}
 }
 
 std::vector<std::string> CStandardizedLogger::Split(const std::string & str, const char delimiter)
@@ -449,101 +422,30 @@ void CStandardizedLogger::WriteAlarmLog(const CString& strProductId, const CStri
 	m_bIsFirstLoopAfterAlarm.store(true);
 }
 
-void CStandardizedLogger::WriteResultLog(const CString& strProductId, const int nViewNumber, bool bInspResult)
+void CStandardizedLogger::WriteResultLogFlush(const CString & strProductId)
 {
-	CString strImgPath {};
-	strImgPath.GetBuffer(100);
-	strImgPath.ReleaseBuffer();
-	StandardizedLogging::EResultValue eResultVal{};
-	if(bInspResult)
-		eResultVal = StandardizedLogging::EResultValue::OK;
-
-	else
-		eResultVal = StandardizedLogging::EResultValue::NG;
-
-	bool bTryGetResult = TryGetImgPath(strProductId, nViewNumber, strImgPath);
-	if(!bTryGetResult)
+	CSingleLock lock(&m_csImagePathTableLock, TRUE);
+	for(auto it = std::begin(m_vctImageNameElements); it != std::end(m_vctImageNameElements); )
 	{
-		WriteAlarmLog(strProductId, IMG_PATH_NOT_GIVEN);
-	}
+		auto pImgElement = *it;
+		if(strProductId == pImgElement->GetProductId())
+		{
+			writeResultLogInternal(strProductId, strProductId, pImgElement->GetImgResult(), pImgElement->GetImgPath(), pImgElement->GetValues());
 
-	else
-	{
-		writeResultLogInternal(strProductId, strProductId, eResultVal, strImgPath);
-	}
+			it = m_vctImageNameElements.erase(it);
+		}
+		else
+			++it;
+	}	
 }
 
-void CStandardizedLogger::WriteResultLogEx(const CString & strProductId, const int nViewNumber, bool bInspResult, const int nExId)
+void CStandardizedLogger::AddImgNameElement(const std::shared_ptr<IResultLogElement>& pImgNameElement)
 {
-	CString strImgPath {};
-	strImgPath.GetBuffer(100);
-	strImgPath.ReleaseBuffer();
-	StandardizedLogging::EResultValue eResultVal {};
-	if(bInspResult)
-		eResultVal = StandardizedLogging::EResultValue::OK;
-
-	else
-		eResultVal = StandardizedLogging::EResultValue::NG;
-
-	bool bTryGetResult = TryGetImgPathEx(strProductId, nViewNumber, strImgPath, nExId);
-	if(!bTryGetResult)
-	{
-		WriteAlarmLog(strProductId, IMG_PATH_NOT_GIVEN);
-	}
-
-	else
-	{
-		writeResultLogInternal(strProductId, strProductId, eResultVal, strImgPath);
-	}
+	CSingleLock lock(&m_csImagePathTableLock, TRUE);
+	m_vctImageNameElements.emplace_back(pImgNameElement);
 }
 
-void CStandardizedLogger::WriteResultLogWithValues(const CString & strProductId, const int nViewNumber, bool bInspResult, const std::vector<CString>& vctValues)
-{
-	CString strImgPath {};
-	strImgPath.GetBuffer(100);
-	strImgPath.ReleaseBuffer();
-	StandardizedLogging::EResultValue eResultVal {};
-	if(bInspResult)
-		eResultVal = StandardizedLogging::EResultValue::OK;
-
-	else
-		eResultVal = StandardizedLogging::EResultValue::NG;
-
-	bool bTryGetResult = TryGetImgPath(strProductId, nViewNumber, strImgPath);
-	if(!bTryGetResult)
-	{
-		WriteAlarmLog(strProductId, IMG_PATH_NOT_GIVEN);
-	}
-	else
-	{
-		writeResultLogInternal(strProductId, strProductId, eResultVal, strImgPath, vctValues);
-	}
-}
-
-void CStandardizedLogger::WriteResultLogWithValuesEx(const CString & strProductId, const int nViewNumber, bool bInspResult, const std::vector<CString>& vctValues, const int nExId)
-{
-	CString strImgPath {};
-	strImgPath.GetBuffer(100);
-	strImgPath.ReleaseBuffer();
-	StandardizedLogging::EResultValue eResultVal {};
-	if(bInspResult)
-		eResultVal = StandardizedLogging::EResultValue::OK;
-
-	else
-		eResultVal = StandardizedLogging::EResultValue::NG;
-
-	bool bTryGetResult = TryGetImgPathEx(strProductId, nViewNumber, strImgPath, nExId);
-	if(!bTryGetResult)
-	{
-		WriteAlarmLog(strProductId, IMG_PATH_NOT_GIVEN);
-	}
-	else
-	{
-		writeResultLogInternal(strProductId, strProductId, eResultVal, strImgPath, vctValues);
-	}
-}
-
-void CStandardizedLogger::writeResultLogInternal(const CString& strModuleId, const CString& strCellId, const StandardizedLogging::EResultValue eResultValue, const CString& strImgPath, const std::vector<CString>& vctLogs)
+void CStandardizedLogger::writeResultLogInternal(const CString& strModuleId, const CString& strCellId, const bool bResult, const CString& strImgPath, const std::vector<CString>& vctLogs)
 {
 	CTime curTime = CTime::GetCurrentTime();
 	CString strLogTime = GetFormattedTime(curTime);
@@ -557,14 +459,11 @@ void CStandardizedLogger::writeResultLogInternal(const CString& strModuleId, con
 	strLogContents.AppendFormat(_T("%010d,"), nModuleIdx);
 	pLogData->nIndex = nModuleIdx;
 	strLogContents.AppendFormat(_T("%s,%s,"), strModuleId, strCellId);
-	if(eResultValue == StandardizedLogging::EResultValue::OK)
+	if(bResult)
 		strLogContents.AppendFormat(_T("OK"));
 
-	else if(eResultValue == StandardizedLogging::EResultValue::NG)
+	else 
 		strLogContents.AppendFormat(_T("NG"));
-
-	else
-		strLogContents.AppendFormat(_T("Result Not Set"));
 
 	for(const auto& str : vctLogs)
 	{
@@ -861,134 +760,6 @@ std::vector<CString> CStandardizedLogger::SplitCString(const CString& strInput, 
 	return vctResult;
 }
 
-bool CStandardizedLogger::AddProductImgPathEx(const CString & strProductId, const int nViewNumber, const CString & strImgPath, const int nExFlag)
-{
-	bool bAddRet = AddProductImgPath(strProductId, nViewNumber, strImgPath);
-	if(bAddRet)
-	{
-		auto lookUp = m_tableImgPath.find(strProductId);
-		if(lookUp != std::end(m_tableImgPath))
-		{
-			std::vector<std::tuple<CString, int, int>>& vctImgPath = lookUp->second.second;
-			auto findImgPath = [nViewNumber, nExFlag](const std::tuple<CString, int, int>& op)
-			{
-				if(std::get<1>(op) == nViewNumber && std::get<2>(op) == -1)
-					return true;
-
-				else
-					return false;
-			};
-
-			auto findTarget = std::find_if(std::begin(vctImgPath), std::end(vctImgPath), findImgPath);
-			if(findTarget != std::end(vctImgPath))
-			{
-				vctImgPath.erase(findTarget);
-				vctImgPath.emplace_back(std::make_tuple(strImgPath, nViewNumber, nExFlag));
-			}
-
-			else
-			{
-				WriteAlarmLog(strProductId, _T("ADD IMG PATH VIEW NUM EX FLAG LOOKUP ERROR"));
-				bAddRet = false;
-			}
-		}
-	}
-
-	return bAddRet;
-}
-
-bool CStandardizedLogger::AddProductImgPath(const CString& strProductId, const int nViewNumber, const CString & strImgPath)
-{
-	CSingleLock lock(&m_csImagePathTableLock, TRUE);
-	auto lookUp = m_tableImgPath.find(strProductId);
-	if(lookUp == std::end(m_tableImgPath))
-	{
-		if(m_tableImgPath.size() > MAXIMUM_TABLE_SIZE)
-			ClearImgPathTable();
-
-		std::vector<std::tuple<CString, int, int>> vctImgPath{};
-		vctImgPath.reserve(15);
-		CTime curTime = CTime::GetCurrentTime();
-		vctImgPath.emplace_back(std::make_tuple(strImgPath, nViewNumber, -1));
-		m_tableImgPath.emplace(strProductId, std::make_pair(curTime, vctImgPath));
-		return true;
-	}
-
-	else
-	{
-		std::pair<CTime, std::vector<std::tuple<CString, int, int>>>& ImgPathTime = lookUp->second;
-		bool bSameImgExist = false;
-		std::vector<std::tuple<CString, int, int>>& vctImgPath = ImgPathTime.second;
-		for(const auto& it : vctImgPath)
-		{
-			const int nViewNumToCheck = std::get<1>(it);
-			if(nViewNumToCheck == nViewNumber)
-			{	
-				bSameImgExist = true;
-				break;
-			}
-		}
-
-		if(!bSameImgExist)
-		{
-			vctImgPath.emplace_back(std::make_tuple(strImgPath, nViewNumber, -1));
-			return true;
-		}
-
-		else
-			return false;
-
-	}
-}
-
-bool CStandardizedLogger::TryGetImgPathEx(const CString& strProductId, const int nViewNumber, CString& strImgPath, const int nEx)
-{
-	CSingleLock lock(&m_csImagePathTableLock, TRUE);
-	auto findProductImgPath = m_tableImgPath.find(strProductId);
-	if(findProductImgPath == std::end(m_tableImgPath))
-		return false;
-
-	else
-	{
-		const std::vector<std::tuple<CString, int, int>>& vctViewImgPath = findProductImgPath->second.second; 
-		for(const auto& it : vctViewImgPath)
-		{
-			const int nViewNumberToCheck = std::get<1>(it);
-			const int nExToCheck = std::get<2>(it);
-			if(nViewNumberToCheck == nViewNumber && nExToCheck && nEx)
-			{
-				strImgPath = std::get<0>(it);
-				return true;
-			}
-		}
-
-		return false;
-	}
-}
-
-bool CStandardizedLogger::TryGetImgPath(const CString& strProductId, const int nViewNumber, CString& strImgPath)
-{
-	CSingleLock lock(&m_csImagePathTableLock, TRUE);
-	auto findProductImgPath = m_tableImgPath.find(strProductId);
-	if(findProductImgPath == std::end(m_tableImgPath))
-		return false;
-
-	else
-	{
-		const std::vector<std::tuple<CString, int, int>>& vctViewImgPath = findProductImgPath->second.second;
-		for(const auto& it : vctViewImgPath)
-		{
-			const int nViewNumberToCheck = std::get<1>(it);
-			if(nViewNumberToCheck == nViewNumber)
-			{
-				strImgPath = std::get<0>(it);
-				return true;
-			}
-		}
-
-		return false;
-	}
-}
 
 CString CStandardizedLogger::GetFilePath(const CString& strProductId, const int nCamIdx, const int nImgIdx, bool bIsOk, bool bIsOverlay, EFileExtensionType eFileType)
 {

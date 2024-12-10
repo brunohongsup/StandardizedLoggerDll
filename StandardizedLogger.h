@@ -233,6 +233,7 @@
 
 class CRosSocket;
 
+
 namespace StandardizedLogging
 {
 	enum class EMacro
@@ -465,6 +466,19 @@ struct CStringEqual
 	}
 };
 
+struct IResultLogElement
+{
+	virtual CString GetImgPath() = 0;
+
+	virtual CString GetProductId() = 0;
+
+	virtual std::vector<CString> GetValues() = 0;
+
+	virtual bool GetImgResult() = 0;
+
+	virtual bool GetFinalResult() = 0;
+};
+
 class CStandardizedLogger
 {
 	friend class CRosSocket;
@@ -642,17 +656,9 @@ public:
 
 	void WriteAlarmLog(const CString& strProductId, const CString & strLogContent);	
 
-	void WriteResultLog(const CString& strProductId, const int nViewNumber, bool bInspResult);
+	void WriteResultLogFlush(const CString& strProductId);
 
-	void WriteResultLogWithFinalResult(const CString& strProductId, bool bFinalResult);
-
-	void AddResultLogToTable(const CString& strProductId, const int nViewNumber, bool bInsp);
-
-	void WriteResultLogEx(const CString& strProductId, const int nViewNumber, bool bInspResult, const int nExId);
-
-	void WriteResultLogWithValues(const CString& strProductId, const int nViewNumber, bool bInspResult, const std::vector<CString>& vctValues);
-
-	void WriteResultLogWithValuesEx(const CString& strProductId, const int nViewNumber, bool bInspResult, const std::vector<CString>& vctValues, const int nExId);
+	void AddImgNameElement(const std::shared_ptr<IResultLogElement>& pImgNameElement);
 
 	void WriteSystemLog(const CString & strProductId, const StandardizedLogging::ESystemLogThread eLogThread, const CString & strLogContent);
 
@@ -688,31 +694,19 @@ public:
 
 	static std::vector<CString> SplitCString(const CString& str, const TCHAR delimiter);
 
-	bool AddProductImgPathEx(const CString& strProductId, const int nViewNumber, const CString& strImgPath, const int nExFlag);
-
-	bool AddProductImgPath(const CString& strProductId, const int nViewNumber, const CString& strImgPath);
-
-	bool TryGetImgPathEx(const CString& strProductId, const int nViewNumber, CString& strImgPath, int nExtra);
-
-	bool TryGetImgPath(const CString& strProductId, const int nViewNumber, CString& strImgPath);
-
 	static CString GetFilePath(const CString& strProductId, const int nCamIdx, const int nImgIdx, bool bIsOk,bool bIsOverlay, EFileExtensionType eFileType);
 
-	
-	
 private:
 
 	CStandardizedLogger();
 
 	bool init();
 
-	void ClearImgPathTable();
-
 	static std::vector<std::string> Split(const std::string& str, const char delimiter);
 
 	void writeProcessLogWithRecentCellInfo(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, CString strContent, ...);
 
-	void writeResultLogInternal(const CString & strModuleId, const CString& strCellId, const StandardizedLogging::EResultValue eResultValue, const CString & strImgPath, const std::vector<CString>& vctLogs = std::vector<CString> {});
+	void writeResultLogInternal(const CString & strModuleId, const CString& strCellId, bool bResult, const CString & strImgPath, const std::vector<CString>& vctLogs = std::vector<CString> {});
 
 	void writeSystemLogInternal(const CString & strProductId, const StandardizedLogging::ESystemLogThread eLogThread, const CString & strLogContent, const StandardizedLogging::EPreTag ePreTag, const StandardizedLogging::EPostTag ePostTag);
 
@@ -744,7 +738,9 @@ private:
 
 	std::unordered_map<CString, std::pair<int,CTime>, CStringHash, CStringEqual> m_tableProductIdx;
 
-	std::unordered_map<CString, std::pair<CTime,std::vector<std::tuple<CString, int, int>>>, CStringHash, CStringEqual> m_tableImgPath;
+	constexpr static const size_t IMAGE_NAME_ELEMENT_MAXIMUM_COUNT = 2000;
+
+	std::vector<std::shared_ptr<IResultLogElement>> m_vctImageNameElements;
 
 	int m_nProductIndex;
 
