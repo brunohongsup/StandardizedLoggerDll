@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "pch.h"
 #include "StandardizedLogger.h"
 
 CCriticalSection CStandardizedLogger::s_lockSection;
@@ -454,13 +454,6 @@ void CStandardizedLogger::WriteResultLog(const CString& strProductId, const int 
 	CString strImgPath {};
 	strImgPath.GetBuffer(100);
 	strImgPath.ReleaseBuffer();
-	StandardizedLogging::EResultValue eResultVal{};
-	if(bInspResult)
-		eResultVal = StandardizedLogging::EResultValue::OK;
-
-	else
-		eResultVal = StandardizedLogging::EResultValue::NG;
-
 	bool bTryGetResult = TryGetImgPath(strProductId, nViewNumber, strImgPath);
 	if(!bTryGetResult)
 	{
@@ -469,8 +462,13 @@ void CStandardizedLogger::WriteResultLog(const CString& strProductId, const int 
 
 	else
 	{
-		writeResultLogInternal(strProductId, strProductId, eResultVal, strImgPath);
+		writeResultLogInternal(strProductId, strProductId, bInspResult, strImgPath);
 	}
+}
+
+void CStandardizedLogger::WriteResultLog(const IResultLog& iResultLog)
+{
+	writeResultLogInternal(iResultLog.GetProductId(), iResultLog.GetProductId(),  iResultLog.GetIndividualResult(), iResultLog.GetPath(), iResultLog.vctValue);
 }
 
 void CStandardizedLogger::WriteResultLogEx(const CString & strProductId, const int nViewNumber, bool bInspResult, const int nExId)
@@ -478,13 +476,6 @@ void CStandardizedLogger::WriteResultLogEx(const CString & strProductId, const i
 	CString strImgPath {};
 	strImgPath.GetBuffer(100);
 	strImgPath.ReleaseBuffer();
-	StandardizedLogging::EResultValue eResultVal {};
-	if(bInspResult)
-		eResultVal = StandardizedLogging::EResultValue::OK;
-
-	else
-		eResultVal = StandardizedLogging::EResultValue::NG;
-
 	bool bTryGetResult = TryGetImgPathEx(strProductId, nViewNumber, strImgPath, nExId);
 	if(!bTryGetResult)
 	{
@@ -493,7 +484,7 @@ void CStandardizedLogger::WriteResultLogEx(const CString & strProductId, const i
 
 	else
 	{
-		writeResultLogInternal(strProductId, strProductId, eResultVal, strImgPath);
+		writeResultLogInternal(strProductId, strProductId, bInspResult, strImgPath);
 	}
 }
 
@@ -502,13 +493,6 @@ void CStandardizedLogger::WriteResultLogWithValues(const CString & strProductId,
 	CString strImgPath {};
 	strImgPath.GetBuffer(100);
 	strImgPath.ReleaseBuffer();
-	StandardizedLogging::EResultValue eResultVal {};
-	if(bInspResult)
-		eResultVal = StandardizedLogging::EResultValue::OK;
-
-	else
-		eResultVal = StandardizedLogging::EResultValue::NG;
-
 	bool bTryGetResult = TryGetImgPath(strProductId, nViewNumber, strImgPath);
 	if(!bTryGetResult)
 	{
@@ -516,7 +500,7 @@ void CStandardizedLogger::WriteResultLogWithValues(const CString & strProductId,
 	}
 	else
 	{
-		writeResultLogInternal(strProductId, strProductId, eResultVal, strImgPath, vctValues);
+		writeResultLogInternal(strProductId, strProductId, bInspResult, strImgPath, vctValues);
 	}
 }
 
@@ -525,12 +509,6 @@ void CStandardizedLogger::WriteResultLogWithValuesEx(const CString & strProductI
 	CString strImgPath {};
 	strImgPath.GetBuffer(100);
 	strImgPath.ReleaseBuffer();
-	StandardizedLogging::EResultValue eResultVal {};
-	if(bInspResult)
-		eResultVal = StandardizedLogging::EResultValue::OK;
-
-	else
-		eResultVal = StandardizedLogging::EResultValue::NG;
 
 	bool bTryGetResult = TryGetImgPathEx(strProductId, nViewNumber, strImgPath, nExId);
 	if(!bTryGetResult)
@@ -539,11 +517,11 @@ void CStandardizedLogger::WriteResultLogWithValuesEx(const CString & strProductI
 	}
 	else
 	{
-		writeResultLogInternal(strProductId, strProductId, eResultVal, strImgPath, vctValues);
+		writeResultLogInternal(strProductId, strProductId, bInspResult, strImgPath, vctValues);
 	}
 }
 
-void CStandardizedLogger::writeResultLogInternal(const CString& strModuleId, const CString& strCellId, const StandardizedLogging::EResultValue eResultValue, const CString& strImgPath, const std::vector<CString>& vctLogs)
+void CStandardizedLogger::writeResultLogInternal(const CString& strModuleId, const CString& strCellId, bool bResult, const CString& strImgPath, const std::vector<CString>& vctLogs)
 {
 	CTime curTime = CTime::GetCurrentTime();
 	CString strLogTime = GetFormattedTime(curTime);
@@ -557,14 +535,11 @@ void CStandardizedLogger::writeResultLogInternal(const CString& strModuleId, con
 	strLogContents.AppendFormat(_T("%010d,"), nModuleIdx);
 	pLogData->nIndex = nModuleIdx;
 	strLogContents.AppendFormat(_T("%s,%s,"), strModuleId, strCellId);
-	if(eResultValue == StandardizedLogging::EResultValue::OK)
+	if(bResult)
 		strLogContents.AppendFormat(_T("OK"));
 
-	else if(eResultValue == StandardizedLogging::EResultValue::NG)
+	else 
 		strLogContents.AppendFormat(_T("NG"));
-
-	else
-		strLogContents.AppendFormat(_T("Result Not Set"));
 
 	for(const auto& str : vctLogs)
 	{

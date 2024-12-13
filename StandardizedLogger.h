@@ -447,6 +447,8 @@ namespace StandardizedLogging
 
 		return szThreadName[nThreadIdx];
 	}
+
+	
 }
 
 struct CStringHash
@@ -464,6 +466,7 @@ struct CStringEqual
 		return lhs.Compare(rhs) == 0;
 	}
 };
+
 
 class CStandardizedLogger
 {
@@ -636,6 +639,24 @@ public:
 		bool SaveToFile() override;
 	};
 
+	struct IResultLog
+	{
+		virtual CString GetPath() const = 0;
+
+		virtual bool GetFinalResult() const = 0;
+
+		virtual bool GetIndividualResult() const = 0;
+
+		virtual CString GetProductId() const = 0;
+
+		std::vector<CString> vctValue;
+
+		IResultLog()
+		{
+			vctValue.reserve(30);
+		}
+	};
+
 	private:
 
 public:
@@ -643,6 +664,8 @@ public:
 	void WriteAlarmLog(const CString& strProductId, const CString & strLogContent);	
 
 	void WriteResultLog(const CString& strProductId, const int nViewNumber, bool bInspResult);
+
+	void WriteResultLog(const IResultLog& iResultLog);
 
 	void WriteResultLogWithFinalResult(const CString& strProductId, bool bFinalResult);
 
@@ -712,7 +735,7 @@ private:
 
 	void writeProcessLogWithRecentCellInfo(const StandardizedLogging::EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductID, CString strContent, ...);
 
-	void writeResultLogInternal(const CString & strModuleId, const CString& strCellId, const StandardizedLogging::EResultValue eResultValue, const CString & strImgPath, const std::vector<CString>& vctLogs = std::vector<CString> {});
+	void writeResultLogInternal(const CString & strModuleId, const CString& strCellId, bool bResult, const CString & strImgPath, const std::vector<CString>& vctLogs = std::vector<CString> {});
 
 	void writeSystemLogInternal(const CString & strProductId, const StandardizedLogging::ESystemLogThread eLogThread, const CString & strLogContent, const StandardizedLogging::EPreTag ePreTag, const StandardizedLogging::EPostTag ePostTag);
 
