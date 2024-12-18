@@ -233,6 +233,23 @@
 
 class CRosSocket;
 
+struct IFileSave
+{
+	CString strFilePath = _T("");
+
+	CString strFileData;
+
+	virtual bool SaveToFile() = 0;
+};
+
+class IBgFileSave 
+{
+
+public:
+	virtual void AddFileSaveInfo(const std::shared_ptr<IFileSave>& pFileSave) = 0;
+};
+
+
 namespace StandardizedLogging
 {
 	enum class EMacro
@@ -559,16 +576,7 @@ public:
 
 	};
 
-	struct IFileData 
-	{
-		CString strFileData;
-
-		CString strFilePath = _T("");
-
-		virtual bool SaveToFile() = 0;
-	};
-
-	struct SFileData : IFileData
+	struct SFileData : IFileSave
 	{
 		bool SaveToFile() override;
 	};
@@ -663,19 +671,7 @@ public:
 
 	void WriteAlarmLog(const CString& strProductId, const CString & strLogContent);	
 
-	void WriteResultLog(const CString& strProductId, const int nViewNumber, bool bInspResult);
-
 	void WriteResultLog(const IResultLog& iResultLog);
-
-	void WriteResultLogWithFinalResult(const CString& strProductId, bool bFinalResult);
-
-	void AddResultLogToTable(const CString& strProductId, const int nViewNumber, bool bInsp);
-
-	void WriteResultLogEx(const CString& strProductId, const int nViewNumber, bool bInspResult, const int nExId);
-
-	void WriteResultLogWithValues(const CString& strProductId, const int nViewNumber, bool bInspResult, const std::vector<CString>& vctValues);
-
-	void WriteResultLogWithValuesEx(const CString& strProductId, const int nViewNumber, bool bInspResult, const std::vector<CString>& vctValues, const int nExId);
 
 	void WriteSystemLog(const CString & strProductId, const StandardizedLogging::ESystemLogThread eLogThread, const CString & strLogContent);
 
@@ -683,7 +679,7 @@ public:
 
 	void WriteSystemLogPostTag(const CString & strProductId, const StandardizedLogging::ESystemLogThread eLogThread, const CString & strLogContent, const StandardizedLogging::EPostTag ePostTag);
 
-	void Clear();
+	void SetBgFileSave(IBgFileSave* pBgFileSave);
 
 	void SetVisionSystemMajorName(const CString& strMajorName);
 
@@ -711,25 +707,13 @@ public:
 
 	static std::vector<CString> SplitCString(const CString& str, const TCHAR delimiter);
 
-	bool AddProductImgPathEx(const CString& strProductId, const int nViewNumber, const CString& strImgPath, const int nExFlag);
-
-	bool AddProductImgPath(const CString& strProductId, const int nViewNumber, const CString& strImgPath);
-
-	bool TryGetImgPathEx(const CString& strProductId, const int nViewNumber, CString& strImgPath, int nExtra);
-
-	bool TryGetImgPath(const CString& strProductId, const int nViewNumber, CString& strImgPath);
-
 	static CString GetFilePath(const CString& strProductId, const int nCamIdx, const int nImgIdx, bool bIsOk,bool bIsOverlay, EFileExtensionType eFileType);
-
-	
 	
 private:
 
 	CStandardizedLogger();
 
 	bool init();
-
-	void ClearImgPathTable();
 
 	static std::vector<std::string> Split(const std::string& str, const char delimiter);
 
@@ -739,13 +723,10 @@ private:
 
 	void writeSystemLogInternal(const CString & strProductId, const StandardizedLogging::ESystemLogThread eLogThread, const CString & strLogContent, const StandardizedLogging::EPreTag ePreTag, const StandardizedLogging::EPostTag ePostTag);
 
-	void stopSaveStandardLogThread();
-
 	void formatProcessLog(const std::shared_ptr<SProcessLogData>& pProcessLogData, EPreTag ePreTag, EPostTag ePostTag);
 
 	void writeProcessLogInternal(const std::shared_ptr<SProcessLogData>& pProcessLogData, EProcessLogThread eLogThread, const int nThreadIdx, const CString strProductId);
 
-	static UINT saveLogThreading(LPVOID pParam);
 
 	CString getLogFilePath(const CTime& time, const ESystemName eName, const ELogFileType eLogType) const;
 
@@ -753,29 +734,15 @@ private:
 
 	void pushListLog(const CTime& curTime, const CString& strThreadName);
 
-	void pushLogData(const std::shared_ptr<IFileData>& pLogData);
+	void pushLogData(const std::shared_ptr<IFileSave>& pLogData);
 
 	int getProductIdxFromTable(const CString& strProductId);
 
-	CCriticalSection m_csLogQueue;
-
 	CCriticalSection m_csProductIdxTableLock;
-
-	CCriticalSection m_csImagePathTableLock;
-
-	std::queue<std::shared_ptr<IFileData>> m_queLogData;
 
 	std::unordered_map<CString, std::pair<int,CTime>, CStringHash, CStringEqual> m_tableProductIdx;
 
-	std::unordered_map<CString, std::pair<CTime,std::vector<std::tuple<CString, int, int>>>, CStringHash, CStringEqual> m_tableImgPath;
-
 	int m_nProductIndex;
-
-	std::atomic<bool> m_bThreadRunning;
-
-	CWinThread* m_pSaveStandardLogThread;
-
-	HANDLE m_hThreadTerminatedEvent;
 
 	CString m_strExeFileName;
 
@@ -796,6 +763,9 @@ private:
 	std::atomic<bool> m_bIsFirstLoopAfterProgramOn;
 
 	std::atomic<bool> m_bIsFirstLoopAfterAlarm;
+
+	IBgFileSave* m_pBgFileSave;
+
 };
 
 
