@@ -657,25 +657,11 @@ public:
 		}
 	};
 
-	private:
-
 public:
 
 	void WriteAlarmLog(const CString& strProductId, const CString & strLogContent);	
 
-	void WriteResultLog(const CString& strProductId, const int nViewNumber, bool bInspResult);
-
 	void WriteResultLog(const IResultLog& iResultLog);
-
-	void WriteResultLogWithFinalResult(const CString& strProductId, bool bFinalResult);
-
-	void AddResultLogToTable(const CString& strProductId, const int nViewNumber, bool bInsp);
-
-	void WriteResultLogEx(const CString& strProductId, const int nViewNumber, bool bInspResult, const int nExId);
-
-	void WriteResultLogWithValues(const CString& strProductId, const int nViewNumber, bool bInspResult, const std::vector<CString>& vctValues);
-
-	void WriteResultLogWithValuesEx(const CString& strProductId, const int nViewNumber, bool bInspResult, const std::vector<CString>& vctValues, const int nExId);
 
 	void WriteSystemLog(const CString & strProductId, const StandardizedLogging::ESystemLogThread eLogThread, const CString & strLogContent);
 
@@ -711,18 +697,8 @@ public:
 
 	static std::vector<CString> SplitCString(const CString& str, const TCHAR delimiter);
 
-	bool AddProductImgPathEx(const CString& strProductId, const int nViewNumber, const CString& strImgPath, const int nExFlag);
-
-	bool AddProductImgPath(const CString& strProductId, const int nViewNumber, const CString& strImgPath);
-
-	bool TryGetImgPathEx(const CString& strProductId, const int nViewNumber, CString& strImgPath, int nExtra);
-
-	bool TryGetImgPath(const CString& strProductId, const int nViewNumber, CString& strImgPath);
-
 	static CString GetFilePath(const CString& strProductId, const int nCamIdx, const int nImgIdx, bool bIsOk,bool bIsOverlay, EFileExtensionType eFileType);
 
-	
-	
 private:
 
 	CStandardizedLogger();
@@ -761,13 +737,9 @@ private:
 
 	CCriticalSection m_csProductIdxTableLock;
 
-	CCriticalSection m_csImagePathTableLock;
-
 	std::queue<std::shared_ptr<IFileData>> m_queLogData;
 
 	std::unordered_map<CString, std::pair<int,CTime>, CStringHash, CStringEqual> m_tableProductIdx;
-
-	std::unordered_map<CString, std::pair<CTime,std::vector<std::tuple<CString, int, int>>>, CStringHash, CStringEqual> m_tableImgPath;
 
 	int m_nProductIndex;
 
