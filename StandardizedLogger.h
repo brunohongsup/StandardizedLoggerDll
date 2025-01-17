@@ -678,7 +678,7 @@ public:
 
 	void WriteMainLoopEnd(const CString& strProductId, int nMainThreadIdx = 0);
 
-	void RegisterProductId(const CString& strId);
+	void RegisterProductId(const CString& strId, int nBarcodeCount = -1);
 
 	void WriteProcessLog(StandardizedLogging::EProcessLogThread eLogThread, int nThreadIdx,
 	                     const CString& strProductId, CString strContent, ...);
@@ -744,6 +744,7 @@ private:
 	struct SProductTable
 	{
 		std::unordered_map<CString, std::pair<int, CTime>, CStringHash, CStringEqual> TableProductIdx;
+		
 		std::atomic_int32_t nCurProductIndex;
 
 		SProductTable()
