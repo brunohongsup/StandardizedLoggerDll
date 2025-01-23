@@ -1,13 +1,12 @@
-#include "stdafx.h"
-#include "StandardizedLogger.h"
-
+#include "pch.h"
 #include <iomanip>
+#include "StandardizedLogger.h"
 
 std::mutex CStandardizedLogger::m_mtxInstance;
 
 std::shared_ptr<CStandardizedLogger> CStandardizedLogger::s_pInstance = nullptr;
 
-CString GetFormattedTime(const CTime& curTime);
+CString GetFormattedTime(const CTime& tmLastProduct);
 
 void CharDeleter(char* ptr);
 
@@ -35,11 +34,11 @@ void CStandardizedLogger::WriteMainLoopStart(const int nMainThreadIdx, int* pNul
 		try
 		{
 			std::lock_guard<std::mutex> lock(m_mtxTable);
-			CTime curTime = CTime::GetCurrentTime();
-			CTimeSpan timeDiff = curTime - m_tmResetTime;
+			CTime tmLastProduct = CTime::GetCurrentTime();
+			CTimeSpan timeDiff = tmLastProduct - m_tmResetTime;
 			if (timeDiff.GetTotalHours() >= 24)
 			{
-				m_tmResetTime = CTime(curTime.GetYear(), curTime.GetMonth(), curTime.GetDay(), 6, 0, 0);
+				m_tmResetTime = CTime(tmLastProduct.GetYear(), tmLastProduct.GetMonth(), tmLastProduct.GetDay(), 6, 0, 0);
 				m_productIdxTable.nCurProductIndex.store(0);
 			}
 
@@ -52,7 +51,7 @@ void CStandardizedLogger::WriteMainLoopStart(const int nMainThreadIdx, int* pNul
 
 			m_productIdxTable.nCurProductIndex.fetch_add(1);
 			it->second.first = m_productIdxTable.nCurProductIndex.load();
-			it->second.second = curTime;
+			it->second.second = tmLastProduct;
 			if (pNullIdIdx != nullptr)
 				*pNullIdIdx = m_productIdxTable.nCurProductIndex.load();
 
@@ -272,9 +271,23 @@ bool CStandardizedLogger::init()
 								ss >> std::get_time(&tm, "%Y-%m-%d-[%H:%M:%S]");
 								time_t tmTimeObj = std::mktime(&tm);
 								CTime tmLastProduct(tmTimeObj);
+								const auto pTmLastProductResetTimeStamp = std::make_unique<CTime>();
+								if (tmLastProduct.GetHour() < 6)
+									*pTmLastProductResetTimeStamp = CTime(tmLastProduct.GetYear(), tmLastProduct.GetMonth(), tmLastProduct.GetDay() - 1, 6, 0, 0);
+
+								else
+									*pTmLastProductResetTimeStamp = CTime(tmLastProduct.GetYear(), tmLastProduct.GetMonth(), tmLastProduct.GetDay(), 6, 0, 0);
+
 								CTime tmCurrent = CTime::GetCurrentTime();
-								CTime tmReset(tmCurrent.GetYear(), tmCurrent.GetMonth(), tmCurrent.GetDay(), 6, 0, 0);
-								if (tmLastProduct < tmReset)
+								const auto pTmCurrentResetTimeStamp = std::make_unique<CTime>();
+								if (tmCurrent.GetHour() < 6)
+									*pTmCurrentResetTimeStamp = CTime(tmCurrent.GetYear(), tmCurrent.GetMonth(), tmCurrent.GetDay() - 1, 6, 0, 0);
+
+								else
+									*pTmCurrentResetTimeStamp = CTime(tmCurrent.GetYear(), tmCurrent.GetMonth(), tmCurrent.GetDay(), 6, 0, 0);
+								
+								CTimeSpan tsGap = *pTmCurrentResetTimeStamp - *pTmLastProductResetTimeStamp;
+								if (tsGap.GetTotalHours() >= 24)
 								{
 									m_productIdxTable.nCurProductIndex = 0;
 									DeleteFile(strRecentProductInfoFile);
@@ -293,8 +306,8 @@ bool CStandardizedLogger::init()
 							}
 						}
 
-						CTime curTime = CTime::GetCurrentTime();
-						m_tmResetTime = CTime(curTime.GetYear(), curTime.GetMonth(), curTime.GetDay(), 6, 0, 0);
+						CTime tmLastProduct = CTime::GetCurrentTime();
+						m_tmResetTime = CTime(tmLastProduct.GetYear(), tmLastProduct.GetMonth(), tmLastProduct.GetDay(), 6, 0, 0);
 					}
 				}
 
@@ -368,8 +381,8 @@ void CStandardizedLogger::writeSystemLogInternal(const CString& strProductId,
                                                  const StandardizedLogging::EPreTag ePreTag,
                                                  const StandardizedLogging::EPostTag ePostTag)
 {
-	const CTime curTime = CTime::GetCurrentTime();
-	const CString strLogTime = GetFormattedTime(curTime);
+	const CTime tmLastProduct = CTime::GetCurrentTime();
+	const CString strLogTime = GetFormattedTime(tmLastProduct);
 	const auto pLogData = std::make_shared<SSystemLogData>();
 	auto& strLogContents = pLogData->strFileData;
 	auto& strLogPath = pLogData->strFilePath;
@@ -397,19 +410,19 @@ void CStandardizedLogger::writeSystemLogInternal(const CString& strProductId,
 		strLogContents.AppendFormat(_T(",%s"), strPostTag);
 	}
 
-	strLogPath.AppendFormat(getLogFilePath(curTime, ESystemName::Minor, ELogFileType::SystemLog));
+	strLogPath.AppendFormat(getLogFilePath(tmLastProduct, ESystemName::Minor, ELogFileType::SystemLog));
 	pushLogData(pLogData);
-	pushListLog(curTime, _T("SYSTEM"));
+	pushListLog(tmLastProduct, _T("SYSTEM"));
 }
 
-void CStandardizedLogger::pushListLog(const CTime& curTime, const CString& strThreadName)
+void CStandardizedLogger::pushListLog(const CTime& tmLastProduct, const CString& strThreadName)
 {
 	const auto pListLogItem = std::make_shared<SListLogData>();
 	auto& strListLogContent = pListLogItem->strFileData;
 	auto& strListLogPath = pListLogItem->strFilePath;
 	strListLogContent.Empty();
 	strListLogPath.Empty();
-	strListLogPath.AppendFormat(getLogFilePath(curTime, ESystemName::Minor, ELogFileType::ListLog));
+	strListLogPath.AppendFormat(getLogFilePath(tmLastProduct, ESystemName::Minor, ELogFileType::ListLog));
 	strListLogContent.AppendFormat(strThreadName);
 	pushLogData(pListLogItem);
 }
@@ -449,8 +462,8 @@ int CStandardizedLogger::getProductIdxFromTable(const CString& strProductId)
 
 void CStandardizedLogger::WriteAlarmLog(const CString& strProductId, const CString& strLogContent)
 {
-	CTime curTime = CTime::GetCurrentTime();
-	CString strLogTime = GetFormattedTime(curTime);
+	CTime tmLastProduct = CTime::GetCurrentTime();
+	CString strLogTime = GetFormattedTime(tmLastProduct);
 	const auto pLogData = std::make_shared<SAlarmLogData>();
 	auto& strLogContents = pLogData->strFileData;
 	auto& strLogPath = pLogData->strFilePath;
@@ -471,9 +484,9 @@ void CStandardizedLogger::WriteAlarmLog(const CString& strProductId, const CStri
 
 	CString strThreadName;
 	strThreadName.AppendFormat(_T("ALARM"));
-	strLogPath.AppendFormat(getLogFilePath(curTime, ESystemName::Minor, ELogFileType::AlarmLog));
+	strLogPath.AppendFormat(getLogFilePath(tmLastProduct, ESystemName::Minor, ELogFileType::AlarmLog));
 	pushLogData(pLogData);
-	pushListLog(curTime, strThreadName);
+	pushListLog(tmLastProduct, strThreadName);
 	m_bIsFirstLoopAfterAlarm.store(true);
 }
 
@@ -486,8 +499,8 @@ void CStandardizedLogger::WriteResultLog(IResultLog& iResultLog)
 void CStandardizedLogger::writeResultLogInternal(const CString& strModuleId, const CString& strCellId, bool bResult,
                                                  const CString& strImgPath, const std::vector<CString>& vctLogs)
 {
-	CTime curTime = CTime::GetCurrentTime();
-	CString strLogTime = GetFormattedTime(curTime);
+	CTime tmLastProduct = CTime::GetCurrentTime();
+	CString strLogTime = GetFormattedTime(tmLastProduct);
 	const auto pLogData = std::make_shared<SResultLogData>();
 	auto& strLogContents = pLogData->strFileData;
 	auto& strLogPath = pLogData->strFilePath;
@@ -510,9 +523,9 @@ void CStandardizedLogger::writeResultLogInternal(const CString& strModuleId, con
 	}
 
 	strLogContents.AppendFormat(_T(",%s"), strImgPath);
-	strLogPath.AppendFormat(getLogFilePath(curTime, ESystemName::Minor, ELogFileType::ResultLog));
+	strLogPath.AppendFormat(getLogFilePath(tmLastProduct, ESystemName::Minor, ELogFileType::ResultLog));
 	pushLogData(pLogData);
-	pushListLog(curTime, _T("RESULT"));
+	pushListLog(tmLastProduct, _T("RESULT"));
 }
 
 void CStandardizedLogger::WriteSystemLog(const CString& strProductId,
@@ -537,7 +550,7 @@ void CStandardizedLogger::WriteSystemLogPostTag(const CString& strProductId,
 	writeSystemLogInternal(strProductId, eSystemLogThread, strLogContent, EPreTag::None, ePostTag);
 }
 
-CString CStandardizedLogger::getLogFilePath(const CTime& curTime, const ESystemName eName,
+CString CStandardizedLogger::getLogFilePath(const CTime& tmLastProduct, const ESystemName eName,
                                             const ELogFileType eLogType) const
 {
 	CString strLogFilePath;
@@ -551,10 +564,10 @@ CString CStandardizedLogger::getLogFilePath(const CTime& curTime, const ESystemN
 	sLogFileType.eLogFileType = eLogType;
 	if (eLogType != ELogFileType::RecentProductInfo)
 	{
-		const int nYear = curTime.GetYear();
-		const int nMonth = curTime.GetMonth();
-		const int nDay = curTime.GetDay();
-		const int nHour = curTime.GetHour();
+		const int nYear = tmLastProduct.GetYear();
+		const int nMonth = tmLastProduct.GetMonth();
+		const int nDay = tmLastProduct.GetDay();
+		const int nHour = tmLastProduct.GetHour();
 		strLogFilePath.AppendFormat(_T("LOG_SW\\%04d%02d%02d%02d\\%02d\\"),
 		                            nYear,
 		                            nMonth,
@@ -665,7 +678,7 @@ BOOL CreateDirectoryRecursive(const CString& strPath)
 	return CreateDirectory(szPath, NULL) || GetLastError() == ERROR_ALREADY_EXISTS;
 }
 
-CString GetFormattedTime(const CTime& curTime)
+CString GetFormattedTime(const CTime& tmLastProduct)
 {
 	const auto now = std::chrono::system_clock::now();
 	const auto duration = now.time_since_epoch();
@@ -678,9 +691,9 @@ CString GetFormattedTime(const CTime& curTime)
 
 	CString formattedTime;
 	formattedTime.AppendFormat(_T("%02d:%02d:%02d:%03d:%03d"),
-	                           curTime.GetHour(),
-	                           curTime.GetMinute(),
-	                           curTime.GetSecond(),
+	                           tmLastProduct.GetHour(),
+	                           tmLastProduct.GetMinute(),
+	                           tmLastProduct.GetSecond(),
 	                           milliseconds.count(),
 	                           microseconds.count() % 1000
 	);
