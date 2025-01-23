@@ -39,23 +39,23 @@ void CStandardizedLogger::WriteMainLoopStart(const int nMainThreadIdx, int* pNul
 			if (timeDiff.GetTotalHours() >= 24)
 			{
 				m_tmResetTime = CTime(tmLastProduct.GetYear(), tmLastProduct.GetMonth(), tmLastProduct.GetDay(), 6, 0, 0);
-				m_productIdxTable.nCurProductIndex.store(0);
+				m_tableProductIdx.nCurProductIndex.store(0);
 			}
 
-			auto it = m_productIdxTable.TableProductIdx.find(NULL_ID);
-			if (it == std::end(m_productIdxTable.TableProductIdx))
+			auto it = m_tableProductIdx.TableProductIdx.find(NULL_ID);
+			if (it == std::end(m_tableProductIdx.TableProductIdx))
 			{
-				m_productIdxTable.TableProductIdx.emplace(NULL_ID, std::make_pair(0, CTime::GetCurrentTime()));
-				it = m_productIdxTable.TableProductIdx.find(NULL_ID);
+				m_tableProductIdx.TableProductIdx.emplace(NULL_ID, std::make_pair(0, CTime::GetCurrentTime()));
+				it = m_tableProductIdx.TableProductIdx.find(NULL_ID);
 			}
 
-			m_productIdxTable.nCurProductIndex.fetch_add(1);
-			it->second.first = m_productIdxTable.nCurProductIndex.load();
+			m_tableProductIdx.nCurProductIndex.fetch_add(1);
+			it->second.first = m_tableProductIdx.nCurProductIndex.load();
 			it->second.second = tmLastProduct;
 			if (pNullIdIdx != nullptr)
-				*pNullIdIdx = m_productIdxTable.nCurProductIndex.load();
+				*pNullIdIdx = m_tableProductIdx.nCurProductIndex.load();
 
-			nProductIdx = m_productIdxTable.nCurProductIndex.load();
+			nProductIdx = m_tableProductIdx.nCurProductIndex.load();
 		}
 		catch (const std::exception& e)
 		{
@@ -99,6 +99,13 @@ UINT CStandardizedLogger::saveLogThreading()
 			{
 				lock.unlock();
 				std::this_thread::sleep_for(std::chrono::seconds(3));
+				{
+					std::lock_guard<std::mutex> lockThreadTable(pInstance->m_mtxThreadTable);
+					CTime tmCurrent = CTime::GetCurrentTime();
+					for (const auto& it : pInstance->m_tableThreadList)
+						pInstance->pushListLog(tmCurrent, it);
+				}
+				
 				continue;
 			}
 
@@ -145,8 +152,8 @@ void CStandardizedLogger::formatProcessLog(const std::shared_ptr<SProcessLogData
 
 	auto& strProcessLogFilePath = pProcessLogData->strFilePath;
 	auto& strLogRow = pProcessLogData->strFileData;
-	strProcessLogFilePath.AppendFormat(getLogFilePath(pProcessLogData->tmLogTime, ESystemName::Minor,
-	                                                  ELogFileType::ProcessLog));
+	strProcessLogFilePath.AppendFormat(getLogFilePath(ESystemName::Minor, ELogFileType::ProcessLog,
+	                                                  pProcessLogData->tmLogTime));
 	strLogRow.Empty();
 	strLogRow.AppendFormat(strAddLog);
 }
@@ -160,14 +167,14 @@ bool CStandardizedLogger::init()
 		try
 		{
 			std::lock_guard<std::mutex> lock(m_mtxTable);
-			const auto findNullId = m_productIdxTable.TableProductIdx.find(NULL_ID);
-			if (findNullId != std::end(m_productIdxTable.TableProductIdx))
+			const auto findNullId = m_tableProductIdx.TableProductIdx.find(NULL_ID);
+			if (findNullId != std::end(m_tableProductIdx.TableProductIdx))
 			{
 				AfxMessageBox(_T("[StandardizedLog] Initialization Failed - NULL_ID Index is not set to 1"));
 				return false;
 			}
 
-			m_productIdxTable.TableProductIdx.emplace(NULL_ID, std::make_pair(0, CTime::GetCurrentTime()));
+			m_tableProductIdx.TableProductIdx.emplace(NULL_ID, std::make_pair(0, CTime::GetCurrentTime()));
 			TCHAR szPath[MAX_PATH];
 			m_strExeFileName.Empty();
 			if (GetModuleFileNameW(NULL, szPath, MAX_PATH))
@@ -234,7 +241,7 @@ bool CStandardizedLogger::init()
 					else
 					{
 						const CString strRecentProductInfoFile = getLogFilePath(
-							CTime::GetCurrentTime(), ESystemName::Minor, ELogFileType::RecentProductInfo);
+							ESystemName::Minor, ELogFileType::RecentProductInfo, CTime::GetCurrentTime());
 						if (PathFileExists(strRecentProductInfoFile))
 						{
 							CFile file;
@@ -289,7 +296,7 @@ bool CStandardizedLogger::init()
 								CTimeSpan tsGap = *pTmCurrentResetTimeStamp - *pTmLastProductResetTimeStamp;
 								if (tsGap.GetTotalHours() >= 24)
 								{
-									m_productIdxTable.nCurProductIndex = 0;
+									m_tableProductIdx.nCurProductIndex = 0;
 									DeleteFile(strRecentProductInfoFile);
 								}
 
@@ -297,7 +304,7 @@ bool CStandardizedLogger::init()
 								{
 									const std::string& strLastProductCount = vctRecent[1];
 									const int nLastProductCount = std::stoi(strLastProductCount);
-									m_productIdxTable.nCurProductIndex = nLastProductCount;
+									m_tableProductIdx.nCurProductIndex = nLastProductCount;
 								}
 							}
 							else
@@ -370,8 +377,8 @@ void CStandardizedLogger::writeProcessLogWithRecentCellInfo(const StandardizedLo
 		tmProductTime.GetDay(), tmProductTime.GetHour(), tmProductTime.GetMinute(), tmProductTime.GetSecond());
 	strRecentProductInfo.AppendFormat(_T("%010d,"), pLogData->nIndex);
 	strRecentProductInfo.AppendFormat(_T("%s,"), pLogData->strId);
-	pRecentProductInfo->strFilePath = getLogFilePath(pLogData->tmLogTime, ESystemName::Minor,
-	                                                 StandardizedLogging::ELogFileType::RecentProductInfo);
+	pRecentProductInfo->strFilePath = getLogFilePath(ESystemName::Minor, StandardizedLogging::ELogFileType::RecentProductInfo,
+	                                                 pLogData->tmLogTime);
 	pushLogData(pRecentProductInfo);
 }
 
@@ -410,7 +417,7 @@ void CStandardizedLogger::writeSystemLogInternal(const CString& strProductId,
 		strLogContents.AppendFormat(_T(",%s"), strPostTag);
 	}
 
-	strLogPath.AppendFormat(getLogFilePath(tmLastProduct, ESystemName::Minor, ELogFileType::SystemLog));
+	strLogPath.AppendFormat(getLogFilePath(ESystemName::Minor, ELogFileType::SystemLog, tmLastProduct));
 	pushLogData(pLogData);
 	pushListLog(tmLastProduct, _T("SYSTEM"));
 }
@@ -422,7 +429,7 @@ void CStandardizedLogger::pushListLog(const CTime& tmLastProduct, const CString&
 	auto& strListLogPath = pListLogItem->strFilePath;
 	strListLogContent.Empty();
 	strListLogPath.Empty();
-	strListLogPath.AppendFormat(getLogFilePath(tmLastProduct, ESystemName::Minor, ELogFileType::ListLog));
+	strListLogPath.AppendFormat(getLogFilePath(ESystemName::Minor, ELogFileType::ListLog, tmLastProduct));
 	strListLogContent.AppendFormat(strThreadName);
 	pushLogData(pListLogItem);
 
@@ -448,9 +455,9 @@ int CStandardizedLogger::getProductIdxFromTable(const CString& strProductId)
 		try
 		{
 			std::lock_guard<std::mutex> lock(m_mtxTable);
-			const auto findProduct = m_productIdxTable.TableProductIdx.find(strProductId);
-			if (findProduct == std::end(m_productIdxTable.TableProductIdx))
-				nIdx = m_productIdxTable.nCurProductIndex.load();
+			const auto findProduct = m_tableProductIdx.TableProductIdx.find(strProductId);
+			if (findProduct == std::end(m_tableProductIdx.TableProductIdx))
+				nIdx = m_tableProductIdx.nCurProductIndex.load();
 
 			else
 			{
@@ -491,7 +498,7 @@ void CStandardizedLogger::WriteAlarmLog(const CString& strProductId, const CStri
 
 	CString strThreadName;
 	strThreadName.AppendFormat(_T("ALARM"));
-	strLogPath.AppendFormat(getLogFilePath(tmLastProduct, ESystemName::Minor, ELogFileType::AlarmLog));
+	strLogPath.AppendFormat(getLogFilePath(ESystemName::Minor, ELogFileType::AlarmLog, tmLastProduct));
 	pushLogData(pLogData);
 	pushListLog(tmLastProduct, strThreadName);
 	m_bIsFirstLoopAfterAlarm.store(true);
@@ -530,7 +537,7 @@ void CStandardizedLogger::writeResultLogInternal(const CString& strModuleId, con
 	}
 
 	strLogContents.AppendFormat(_T(",%s"), strImgPath);
-	strLogPath.AppendFormat(getLogFilePath(tmLastProduct, ESystemName::Minor, ELogFileType::ResultLog));
+	strLogPath.AppendFormat(getLogFilePath(ESystemName::Minor, ELogFileType::ResultLog, tmLastProduct));
 	pushLogData(pLogData);
 	pushListLog(tmLastProduct, _T("RESULT"));
 }
@@ -557,8 +564,8 @@ void CStandardizedLogger::WriteSystemLogPostTag(const CString& strProductId,
 	writeSystemLogInternal(strProductId, eSystemLogThread, strLogContent, EPreTag::None, ePostTag);
 }
 
-CString CStandardizedLogger::getLogFilePath(const CTime& tmLastProduct, const ESystemName eName,
-                                            const ELogFileType eLogType) const
+CString CStandardizedLogger::getLogFilePath(const ESystemName eName, const ELogFileType eLogType,
+                                            const CTime& tmLastProduct) const
 {
 	CString strLogFilePath;
 	if (m_bCanWriteToDDrive)
@@ -620,7 +627,7 @@ void CStandardizedLogger::Clear()
 }
 
 CStandardizedLogger::CStandardizedLogger()
-	: m_productIdxTable()
+	: m_tableProductIdx()
 	  , m_bThreadRunning()
 	  , m_saveThread{}
 	  , m_strVisionSystemMinorName(CString{_T("MinorNameNotSet")})
@@ -926,15 +933,15 @@ void CStandardizedLogger::RegisterProductId(const CString& strId, const int nBar
 		try
 		{
 			std::lock_guard<std::mutex> lock(m_mtxTable);
-			const auto findProduct = m_productIdxTable.TableProductIdx.find(strId);
-			if (findProduct != std::end(m_productIdxTable.TableProductIdx))
+			const auto findProduct = m_tableProductIdx.TableProductIdx.find(strId);
+			if (findProduct != std::end(m_tableProductIdx.TableProductIdx))
 				return;
 
-			if (m_productIdxTable.TableProductIdx.size() > MAXIMUM_TABLE_SIZE)
+			if (m_tableProductIdx.TableProductIdx.size() > MAXIMUM_TABLE_SIZE)
 			{
 				std::vector<std::pair<CString, CTime>> vctPathTime{};
 				vctPathTime.reserve(MAXIMUM_TABLE_SIZE + 10);
-				for (const auto& it : m_productIdxTable.TableProductIdx)
+				for (const auto& it : m_tableProductIdx.TableProductIdx)
 				{
 					const CString& strProductId = it.first;
 					const CTime& tmProduct = it.second.second;
@@ -957,9 +964,9 @@ void CStandardizedLogger::RegisterProductId(const CString& strId, const int nBar
 					if (oldData.first == NULL_ID)
 						continue;
 
-					const auto findProductIdx = m_productIdxTable.TableProductIdx.find(oldData.first);
-					if (findProductIdx != std::end(m_productIdxTable.TableProductIdx))
-						m_productIdxTable.TableProductIdx.erase(findProductIdx);
+					const auto findProductIdx = m_tableProductIdx.TableProductIdx.find(oldData.first);
+					if (findProductIdx != std::end(m_tableProductIdx.TableProductIdx))
+						m_tableProductIdx.TableProductIdx.erase(findProductIdx);
 				}
 			}
 
@@ -968,9 +975,9 @@ void CStandardizedLogger::RegisterProductId(const CString& strId, const int nBar
 				nProductBarcodeCount = nBarcodeCount;
 
 			else
-				nProductBarcodeCount = m_productIdxTable.nCurProductIndex.load();
+				nProductBarcodeCount = m_tableProductIdx.nCurProductIndex.load();
 
-			m_productIdxTable.TableProductIdx.emplace(
+			m_tableProductIdx.TableProductIdx.emplace(
 				strId, std::make_pair(nProductBarcodeCount, CTime::GetCurrentTime()));
 		}
 

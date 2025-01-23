@@ -722,7 +722,7 @@ private:
 
 	static UINT saveLogThreading();
 
-	CString getLogFilePath(const CTime& time, ESystemName eName, ELogFileType eLogType) const;
+	CString getLogFilePath(ESystemName eName, ELogFileType eLogType, const CTime& time) const;
 
 	CString getSystemName(ESystemName eSystem) const;
 
@@ -751,7 +751,7 @@ private:
 		}
 	};
 
-	SProductTable m_productIdxTable;
+	SProductTable m_tableProductIdx;
 
 	std::atomic<bool> m_bThreadRunning;
 
