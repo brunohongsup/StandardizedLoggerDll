@@ -425,6 +425,13 @@ void CStandardizedLogger::pushListLog(const CTime& tmLastProduct, const CString&
 	strListLogPath.AppendFormat(getLogFilePath(tmLastProduct, ESystemName::Minor, ELogFileType::ListLog));
 	strListLogContent.AppendFormat(strThreadName);
 	pushLogData(pListLogItem);
+
+	{
+		std::lock_guard<std::mutex> lock(m_mtxThreadTable);
+		const auto findThreadName = m_tableThreadList.find(strThreadName);
+		if (findThreadName == std::end(m_tableThreadList))
+			m_tableThreadList.insert(strThreadName);
+	}
 }
 
 void CStandardizedLogger::pushLogData(const std::shared_ptr<IFileData>& pLogData)

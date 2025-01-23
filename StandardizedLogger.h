@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <mutex>
 #include <tuple>
+#include <unordered_set>
 
 #pragma comment(lib, "Shlwapi.lib")
 
@@ -775,4 +776,8 @@ private:
 	std::atomic<bool> m_bIsFirstLoopAfterProgramOn;
 
 	std::atomic<bool> m_bIsFirstLoopAfterAlarm;
+
+	std::mutex m_mtxThreadTable;
+	
+	std::unordered_set<CString, CStringHash> m_tableThreadList;
 };
