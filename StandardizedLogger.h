@@ -173,7 +173,7 @@
 
 #define SEND_RESULT_SINGLE(t1) ([](const int nOp1) { CString str; str.Format(_T("Sd Ret-%d"), nOp1); return str; })(t1)
 
-#define END_JUDGE_MENT _T("Ed Jdg Rt")
+#define END_JUDGEMENT _T("Ed Jdg Rt")
 
 #define PLC_RESET_SIGNAL_ON _T("Plc,Sig On Rst")
 
