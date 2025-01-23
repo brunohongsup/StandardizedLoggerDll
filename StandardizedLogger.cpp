@@ -568,18 +568,17 @@ CString CStandardizedLogger::getLogFilePath(const CTime& tmLastProduct, const ES
 		const int nMonth = tmLastProduct.GetMonth();
 		const int nDay = tmLastProduct.GetDay();
 		const int nHour = tmLastProduct.GetHour();
-		strLogFilePath.AppendFormat(_T("LOG_SW\\%04d%02d%02d%02d\\%02d\\"),
+		strLogFilePath.AppendFormat(_T("LOG_SW\\%04d%02d%02d\\%02d\\"),
 		                            nYear,
 		                            nMonth,
 		                            nDay,
-		                            nHour,
 		                            nHour);
 
 		const CString strSystemName = getSystemName(eName);
 		const CString strLogFileType = sLogFileType.ToString();
 
 		strLogFilePath.AppendFormat(
-			_T("I_INSPID_%s-VISION_%s_%s_%04d%02d%02d%02d.txt"), strSystemName, strLogFileType, m_strExeFileName, nYear,
+			_T("I_INSPID1_%s-VISION_%s_%s_%04d%02d%02d%02d.txt"), strSystemName, strLogFileType, m_strExeFileName, nYear,
 			nMonth, nDay, nHour);
 	}
 
