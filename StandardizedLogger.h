@@ -9,6 +9,7 @@
 #include <afxwin.h>
 #include <atomic>
 #include <future>
+#include <atlconv.h>
 #include <shlwapi.h>
 #include <cctype>
 #include <atlstr.h>
@@ -309,12 +310,12 @@ namespace StandardizedLogging
 		ResultLog,
 		ListLog,
 		RecentProductInfo,
+		MainThreadStatus,
 	};
 
 	struct SLogFileType
 	{
-		enum class ELogFileType eLogFileType;
-		CString ToString();
+		static CString ToString(ELogFileType eLogFileType, int nIdx);
 	};
 
 	enum class EInterfaceTarget
@@ -571,6 +572,52 @@ public:
 	{
 	};
 
+	enum class EMainThreadStatus : uint8_t
+	{
+		InLoop,
+		
+		OutOfLoop,
+	};
+
+	struct SMainThreadStatus
+	{
+		int32_t nProductCount;
+
+		EMainThreadStatus eStatus;
+
+		static CString ToString(EMainThreadStatus eStatus)
+		{
+			switch (eStatus)
+			{
+				case EMainThreadStatus::InLoop:
+					return _T("InLoop");
+
+				case EMainThreadStatus::OutOfLoop:
+					return _T("OutOfLoop");
+
+				default:
+					return _T("NoStatus");
+				
+			}
+		}
+	};
+
+	struct SMainThreadStatusLog : SFileData
+	{
+		bool SaveToFile() override;
+
+		int nMainThreadIdx;
+
+		int nProductCount;
+
+		SMainThreadStatusLog()
+			: nMainThreadIdx(-1)
+			, nProductCount()
+		{
+			
+		}
+	};
+
 	struct SRecentProductInfoData : SStandardLogData
 	{
 		bool SaveToFile() override;
@@ -585,8 +632,6 @@ public:
 		CString strId = _T("");
 
 		bool SaveToFile() override;
-
-		bool WriteToFile();
 
 		SLogData()
 		{
@@ -605,6 +650,7 @@ public:
 
 	struct SSystemLogData : SLogData
 	{
+		
 	};
 
 	struct SProcessLogData : SLogData
@@ -616,6 +662,7 @@ public:
 		EPostTag ePostTag = EPostTag::None;
 
 		CTime tmLogTime;
+
 	};
 
 	struct SListLogData : SLogData
@@ -700,7 +747,7 @@ public:
 private:
 	CStandardizedLogger();
 
-	bool init();
+	BOOL init();
 
 	static std::vector<std::string> Split(const std::string& str, char delimiter);
 
@@ -722,11 +769,13 @@ private:
 
 	static UINT saveLogThreading();
 
-	CString getLogFilePath(ESystemName eName, ELogFileType eLogType, const CTime& time) const;
+	CString getLogFilePath(ESystemName eName, ELogFileType eLogType, const CTime& time = CTime::GetCurrentTime(), int nIndex = -1) const;
 
 	CString getSystemName(ESystemName eSystem) const;
 
 	void pushListLog(const CTime& curTime, const CString& strThreadName);
+	
+	void pushListLogInternal(const CTime& tmLogTime);
 
 	void pushLogData(const std::shared_ptr<IFileData>& pLogData);
 
@@ -734,7 +783,7 @@ private:
 
 	std::mutex m_mtxQueue;
 
-	std::mutex m_mtxTable;
+	std::mutex m_mtxProductIdxTable;
 
 	std::queue<std::shared_ptr<IFileData>> m_queLogData;
 
@@ -763,8 +812,6 @@ private:
 
 	CString m_strVisionSystemMajorName;
 
-	bool m_bCanWriteToDDrive;
-
 	CTime m_tmResetTime;  
 
 	constexpr static size_t MAXIMUM_TABLE_SIZE = 500;
@@ -777,7 +824,11 @@ private:
 
 	std::atomic<bool> m_bIsFirstLoopAfterAlarm;
 
-	std::mutex m_mtxThreadTable;
+	std::mutex m_mtxThreadNameTable;
 	
-	std::unordered_set<CString, CStringHash> m_tableThreadList;
+	std::set<CString> m_tableThreadName;
+
+	std::map<int, std::shared_ptr<SMainThreadStatus>> m_tableMainThreadStatus;
+
+	std::mutex m_mtxMainThreadStatus;
 };
